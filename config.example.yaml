@@ -1,0 +1,28 @@
+app:
+  name: Telegram Laptop Files
+
+telegram:
+  framework: python-telegram-bot
+  bot_token_env: TELEGRAM_FILE_BOT_TOKEN
+  owner_user_ids:
+    - 123456789
+
+filesystem:
+  roots:
+    work:
+      display_name: Work
+      path: /home/snikmas/work
+    documents:
+      display_name: Documents
+      path: /home/snikmas/Documents
+    obsidian:
+      display_name: Obsidian
+      path: /home/snikmas/Documents/Obsidian Vault
+  max_preview_bytes: 12000
+  max_upload_bytes: 45000000
+  show_hidden_files: true
+  oversized_file_action: metadata_and_compress
+  delete_mode: trash
+
+logging:
+  audit_log_path: ./data/audit.jsonl
