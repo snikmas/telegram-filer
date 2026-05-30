@@ -24,14 +24,14 @@ Acceptance:
 
 ## Milestone 2 - Telegram Auth And Commands
 
-- [ ] Implement Telegram bot startup.
-- [ ] Add owner Telegram user ID allowlist.
-- [ ] Reject unauthorized users.
-- [ ] Add `/start`.
-- [ ] Add `/roots`.
-- [ ] Add `/help`.
-- [ ] Add `/cancel`.
-- [ ] Add basic error handling wrapper.
+- [x] Implement Telegram bot startup.
+- [x] Add owner Telegram user ID allowlist.
+- [x] Reject unauthorized users.
+- [x] Add `/start`.
+- [x] Add `/roots`.
+- [x] Add `/help`.
+- [x] Add `/cancel`.
+- [x] Add basic error handling wrapper.
 
 Acceptance:
 
@@ -41,13 +41,13 @@ Acceptance:
 
 ## Milestone 3 - Safe Filesystem Layer
 
-- [ ] Define root-folder config model.
-- [ ] Implement shared path resolver.
-- [ ] Canonicalize allowed roots at startup.
-- [ ] Reject path traversal.
-- [ ] Reject symlink escape from allowed roots.
-- [ ] Add file/folder metadata helper.
-- [ ] Add tests for resolver safety.
+- [x] Define root-folder config model.
+- [x] Implement shared path resolver.
+- [x] Canonicalize allowed roots at startup.
+- [x] Reject path traversal.
+- [x] Reject symlink escape from allowed roots.
+- [x] Add file/folder metadata helper.
+- [x] Add tests for resolver safety.
 
 Acceptance:
 

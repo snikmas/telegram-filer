@@ -181,6 +181,20 @@ def _roots(value: Any) -> tuple[RootConfig, ...]:
 
         if not path.is_absolute():
             raise ConfigError(f"filesystem.roots.{root_id}.path must be absolute")
+        path = _canonical_root_path(path, f"filesystem.roots.{root_id}.path")
         roots.append(RootConfig(id=root_id, display_name=display_name, path=path))
 
     return tuple(roots)
+
+
+def _canonical_root_path(path: Path, name: str) -> Path:
+    try:
+        resolved = path.resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise ConfigError(f"{name} does not exist: {path}") from exc
+    except OSError as exc:
+        raise ConfigError(f"{name} cannot be resolved: {path}") from exc
+
+    if not resolved.is_dir():
+        raise ConfigError(f"{name} must be a directory: {path}")
+    return resolved

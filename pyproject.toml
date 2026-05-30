@@ -9,7 +9,7 @@ description = "Private Telegram bot for browsing allowlisted laptop folders."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-  "python-telegram-bot>=21,<23",
+  "python-telegram-bot[socks]>=21,<23",
   "PyYAML>=6.0.2,<7",
 ]
 
