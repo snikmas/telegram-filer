@@ -239,6 +239,81 @@ Acceptance:
 - Encrypted local config.
 - Health check command.
 
+## MVP 2 - Smart File Search
+
+Target: turn `tg-filer` from a filename browser into a read-only file finder that can search inside useful documents and return short, safe summaries.
+
+Recommended scope:
+
+- Keep all file access limited to configured roots.
+- Keep the Telegram bot owner-only.
+- Index local text-like files into SQLite FTS.
+- Search file contents from Telegram.
+- Show matching snippets with path, modified date, and file size.
+- Open a result in the existing file detail view.
+- Add optional AI summaries only after local search works.
+
+Non-goals:
+
+- Editing files.
+- Running shell commands.
+- Auto-changing notes or documents.
+- Indexing the whole laptop.
+- Sending large private files to an AI provider by default.
+
+Milestone 10 - Content Index
+
+- [ ] Add SQLite database path to config.
+- [ ] Create indexed file table with root ID, relative path, size, mtime, hash, and extracted text.
+- [ ] Add SQLite FTS table for searchable content.
+- [ ] Extract text from `.txt`, `.md`, `.json`, `.csv`, `.log`, `.py`, `.js`, `.ts`, `.html`, and `.css`.
+- [ ] Skip binary and oversized files clearly.
+- [ ] Add incremental reindexing based on size and modified time.
+- [ ] Add tests for indexing, updates, deletes, and skipped files.
+
+Acceptance:
+
+- Reindexing a configured root creates a local searchable database.
+- Re-running indexing updates changed files without duplicating rows.
+- Deleted or moved files disappear from search results after reindexing.
+
+Milestone 11 - Content Search UX
+
+- [ ] Add `/index` owner-only command.
+- [ ] Add `/content <query>` command for full-text search.
+- [ ] Return compact numbered results with snippets.
+- [ ] Make each content-search result selectable.
+- [ ] Reuse the existing file detail screen after result selection.
+- [ ] Log index and content-search actions to the audit log.
+
+Acceptance:
+
+- `/content telegram config` finds files by text inside the file, not only by filename.
+- A result can be opened, previewed, downloaded, archived, or deleted through the existing flow.
+- Empty, stale, and permission-denied cases are handled cleanly.
+
+Milestone 12 - Optional AI Summary
+
+- [ ] Add an explicit `ai.enabled` config flag, default false.
+- [ ] Add a separate AI provider config section that reads secrets only from environment variables.
+- [ ] Add `Summarize` action for indexed text files.
+- [ ] Limit summary input size and show when content was truncated.
+- [ ] Never summarize files outside allowlisted roots.
+- [ ] Log summary actions without logging private file content.
+
+Acceptance:
+
+- AI summaries are opt-in.
+- The bot summarizes only the selected file or selected snippets.
+- The user can still use all MVP 2 search features with AI disabled.
+
+MVP 2 finish line:
+
+- I can ask Telegram to find files by content across my allowlisted folders.
+- I can open, preview, and download the result from my phone.
+- The index updates predictably.
+- Private content does not leave the laptop unless I explicitly enable and use AI summaries.
+
 ## Deferred Risks
 
 - Telegram file-size limits may affect large documents and media.
