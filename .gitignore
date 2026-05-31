@@ -32,7 +32,7 @@ env/
 *.swp
 .DS_Store
 
+# Private planning docs
 CHANGELOG.md
-PRODUCT.md
 PRODUCT.md
 ARCHITECTURE.md
