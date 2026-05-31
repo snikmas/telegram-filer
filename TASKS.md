@@ -1,322 +1,150 @@
-# tg-filer - MVP Tasks
+# tg-filer - Tasks
 
-## Working Plan
+## Current State
 
-Target: 1-2 week MVP.
+MVP 1 is functionally complete.
 
-Scope: private Telegram bot for safe file browsing, preview, download, delete confirmation, and filename search across allowlisted laptop folders.
+Completed:
 
-## Milestone 1 - Product Skeleton
-
-- [x] Choose final project name and repo folder.
-- [x] Choose Python Telegram framework.
-- [x] Create minimal app structure.
-- [x] Add local config example with roots for `/home/snikmas/work`, `/home/snikmas/Documents`, and `/home/snikmas/Documents/Obsidian Vault`.
-- [x] Add `.env` handling or documented environment variable loading.
-- [x] Add `.gitignore` entries for secrets, logs, local data, and virtualenv.
-- [x] Add README quickstart.
-
-Acceptance:
-
-- App starts locally.
-- Config loads.
-- Bot token is not committed.
-
-## Milestone 2 - Telegram Auth And Commands
-
-- [x] Implement Telegram bot startup.
-- [x] Add owner Telegram user ID allowlist.
-- [x] Reject unauthorized users.
-- [x] Add `/start`.
-- [x] Add `/roots`.
-- [x] Add `/help`.
-- [x] Add `/cancel`.
-- [x] Add basic error handling wrapper.
-
-Acceptance:
-
-- My Telegram account can use the bot.
-- Another Telegram account receives a denial or no useful access.
-- `/start` shows configured root folders.
-
-## Milestone 3 - Safe Filesystem Layer
-
-- [x] Define root-folder config model.
-- [x] Implement shared path resolver.
-- [x] Canonicalize allowed roots at startup.
-- [x] Reject path traversal.
-- [x] Reject symlink escape from allowed roots.
-- [x] Add file/folder metadata helper.
-- [x] Add tests for resolver safety.
-
-Acceptance:
-
-- All file actions go through one resolver.
-- Attempts to access paths outside allowed roots fail.
-- Resolver behavior is covered by tests.
-
-## Milestone 4 - Browse UX
-
-- [x] Render root list with shell-style text selection.
-- [x] Render folder contents.
-- [x] Show hidden files inside allowlisted folders.
-- [x] Sort folders before files.
-- [x] Add parent navigation with `..`.
-- [x] Add pagination with `more` and `prev`.
-- [x] Add file detail view.
-- [x] Handle empty folders.
-- [x] Handle missing or permission-denied folders.
-
-Acceptance:
-
-- I can navigate from `/start` into configured folders.
-- Large folders remain usable through pagination.
-- File detail view offers valid next actions.
-
-## Milestone 5 - Preview And Download
-
-- [x] Define previewable extensions.
-- [x] Implement text preview size limit.
-- [x] Format preview safely for Telegram.
-- [x] Show metadata for unsupported or binary files.
-- [x] Implement file download.
-- [x] Add upload size check.
-- [x] Show metadata for files larger than 45 MB.
-- [x] Add create-compressed-archive action for oversized files.
-- [x] Send compressed archive when it is below the upload limit.
-- [x] Report compressed size clearly when archive is still too large.
-- [x] Handle Telegram upload errors.
-
-Acceptance:
-
-- I can preview Markdown notes from Obsidian.
-- I can download a normal document.
-- Oversized files show metadata and offer compressed archive creation.
-
-## Milestone 6 - Delete Confirmation
-
-- [x] Create pending action model.
-- [x] Add delete button to file detail view.
-- [x] Add confirmation screen.
-- [x] Add expiration for pending delete actions.
-- [x] Implement cancel.
-- [x] Move deleted files to trash.
-- [x] If trash is unavailable, fail clearly instead of permanently deleting.
-- [x] Do not allow folder deletion in MVP.
-
-Acceptance:
-
-- Delete cannot happen from one accidental tap.
-- Confirmed file deletion works.
-- Expired or canceled confirmation cannot delete anything.
-
-## Milestone 7 - Filename Search
-
-- [x] Add `/search <query>`.
-- [x] Search across allowed roots.
-- [x] Match case-insensitively.
-- [x] Tokenize multi-word query.
-- [x] Limit result count.
-- [x] Include path, size, and modified date in results.
-- [x] Make each result selectable.
-
-Acceptance:
-
-- `/search invoice pdf` returns matching files.
-- Selecting a result opens the file detail view.
-- Empty results are handled cleanly.
-
-## Milestone 8 - Audit Logs And Reliability
-
-- [x] Add append-only JSONL audit log.
-- [x] Log unauthorized access attempts.
-- [x] Log browse, preview, download, delete, and search actions.
-- [x] Log failures with error type.
-- [x] Add graceful startup validation.
-- [x] Add graceful shutdown handling.
-- [x] Add basic local run script or command.
-
-Acceptance:
-
-- Important actions are visible in local logs.
-- Common errors do not crash the bot.
-- Startup fails clearly when config is invalid.
-
-## Milestone 9 - Packaging For Personal Use
-
-- [x] Add install/run instructions.
-- [x] Add user-level systemd service template.
-- [x] Add environment file template.
-- [x] Add troubleshooting notes.
-- [ ] Test laptop restart behavior if systemd is added.
-
-Acceptance:
-
-- I can start the bot reliably after reboot through a user-level systemd service, or with one documented command during development.
-- Troubleshooting steps cover token, auth, config, and filesystem failures.
-
-## Testing Checklist
-
-- [x] Unauthorized Telegram user cannot browse roots.
-- [x] Owner can browse all configured roots.
-- [x] Path traversal attempts are rejected.
-- [x] Symlink escape attempts are rejected.
-- [x] Missing file produces a clear message.
-- [x] Permission denied produces a clear message.
-- [x] Large folder pagination works.
-- [x] Preview truncates large text files.
-- [x] Binary preview is blocked.
-- [x] File download works.
-- [x] Oversized download shows metadata.
-- [x] Oversized file archive creation works when compression brings it under the upload limit.
-- [x] Oversized archive failure reports the compressed size clearly.
-- [x] Delete requires confirmation.
-- [x] Delete confirmation expires.
-- [x] Folder delete is blocked.
-- [x] Search returns useful results.
-- [x] Audit log records important actions.
-
-## Suggested 2-Week Schedule
-
-### Days 1-2
-
-- Project skeleton.
-- Config.
-- Telegram startup.
-- Owner allowlist.
-- Basic commands.
-
-### Days 3-4
-
-- Filesystem resolver.
-- Safety tests.
-- Root list and folder browsing.
-
-### Days 5-6
-
+- Private Telegram bot startup with long polling.
+- Owner-only Telegram allowlist.
+- Configured allowlisted root folders.
+- Safe filesystem resolver.
+- Folder browsing with pagination.
 - File detail view.
-- Preview.
-- Download.
-- Upload size handling.
-
-### Days 7-8
-
-- Delete confirmation.
-- Pending action expiration.
-- Audit logging.
-
-### Days 9-10
-
+- Text preview.
+- File download.
+- Oversized-file archive action.
+- Delete-to-trash with confirmation.
 - Filename search.
-- Result selection.
-- UX cleanup.
+- Recent files command.
+- Health/status command.
+- JSONL audit logs.
+- Startup config validation.
+- Local run script.
+- User-level systemd service template.
+- README quickstart and troubleshooting.
+- Test coverage for core safety and bot behavior.
 
-### Days 11-12
+Remaining MVP 1 operational check:
 
-- Error handling hardening.
-- Manual end-to-end testing from phone.
-- Documentation updates.
+- [ ] Validate user-level systemd behavior after laptop restart.
 
-### Days 13-14
+## MVP 2 - File And Content Search
 
-- Optional user systemd service.
-- Final bug fixes.
-- Decide next iteration: GPT search, content index, or editing.
+Goal: make the bot useful when I remember what a file is about, not only where it is.
 
-## Post-MVP Backlog
+MVP 2 should add:
 
-- Full-text search index for selected roots.
-- Natural-language GPT/Codex search.
-- File summaries for Markdown, PDF, and documents.
+- Filename/path search improvements.
+- Content search inside text-like files.
+- Compact result snippets.
+- Result selection that opens the existing file detail screen.
+
+No AI for MVP 2.
+
+## Milestone 10 - Search Settings
+
+- [x] Add config for content-search file-size limit.
+- [x] Add config for searchable text extensions.
+- [x] Add config for max search results.
+- [x] Add config for max snippet length.
+- [x] Document search limits in README.
+
+Acceptance:
+
+- Search behavior can be tuned without code changes.
+- Large/binary files are skipped predictably.
+
+## Milestone 11 - Filename Search Cleanup
+
+- [x] Review current `/search <query>` behavior.
+- [x] Make token matching consistent and documented.
+- [x] Ensure path/name matching is case-insensitive.
+- [x] Keep results limited and sorted usefully.
+- [x] Show root, relative path, size, and modified date.
+- [x] Add or update tests for filename search edge cases.
+
+Acceptance:
+
+- `/search invoice pdf` finds matching filenames or paths.
+- Selecting a result opens the existing file detail view.
+- Empty results are clear.
+
+## Milestone 12 - Content Search
+
+- [x] Add `/content <query>` command.
+- [x] Scan only configured roots.
+- [x] Search only likely text files.
+- [x] Skip oversized files.
+- [x] Decode text safely.
+- [x] Match query case-insensitively.
+- [x] Support multi-token queries.
+- [x] Return snippets around matched text.
+- [x] Limit result count.
+- [x] Log content-search actions to the audit log.
+- [x] Add tests for content matches, skipped files, permission errors, and empty results.
+
+Acceptance:
+
+- `/content telegram config` finds files containing those words.
+- Results show a useful snippet.
+- Selecting a result opens the file detail view.
+- Permission errors and unreadable files do not crash the bot.
+
+## Milestone 13 - Search UX
+
+- [x] Update `/help` with filename and content search commands.
+- [x] Add short examples to search error messages.
+- [ ] Add "Search again" or back navigation where it fits naturally.
+- [ ] Keep Telegram messages compact enough for phone use.
+- [ ] Reuse existing buttons and file-detail actions.
+
+Acceptance:
+
+- I can search, open, preview, and download a result from my phone without remembering exact paths.
+
+## Optional MVP 2 Enhancements
+
+These are useful, but not required for the MVP 2 finish line:
+
+- [ ] Add `/find <query>` alias for filename search.
+- [ ] Add `/grep <query>` alias for content search.
+- [ ] Add root filters, for example `/content obsidian meeting notes`.
+- [ ] Add extension filters, for example Markdown-only search.
+- [x] Add recent-files command.
+- [x] Add health/status command.
+
+## Implementation Notes
+
+Do not run arbitrary shell commands from Telegram.
+
+Recommended order:
+
+1. Implement search in Python with `pathlib` and safe file reads.
+2. Add tests around security and edge cases.
+3. Manually test on real folders.
+4. Consider optional `rg` backend only if Python scanning is too slow.
+5. Consider SQLite indexing only if live scanning is still not good enough.
+
+If `rg` is added later, call it with fixed arguments and `shell=False`. Do not build shell command strings from Telegram input.
+
+## MVP 2 Finish Line
+
+- I can search by filename/path.
+- I can search by file content.
+- I can open any search result in the existing file view.
+- I can preview or download the result.
+- Search stays inside allowlisted roots.
+- Search errors are handled cleanly.
+
+## Future Backlog
+
+- Optional SQLite full-text index.
+- Better search ranking.
+- Root and extension filters.
+- Favorite folders.
+- Recent files.
 - Upload-to-laptop flow.
-- Replace-file flow with backup.
-- Append-to-note flow.
-- Text-file edit flow with diff preview.
-- Codex patch proposal flow.
-- Folder delete with stronger confirmation.
-- Per-root permissions.
+- Safer text edit flow with backup and diff preview.
 - Local web admin page.
-- Encrypted local config.
-- Health check command.
-
-## MVP 2 - Smart File Search
-
-Target: turn `tg-filer` from a filename browser into a read-only file finder that can search inside useful documents and return short, safe summaries.
-
-Recommended scope:
-
-- Keep all file access limited to configured roots.
-- Keep the Telegram bot owner-only.
-- Index local text-like files into SQLite FTS.
-- Search file contents from Telegram.
-- Show matching snippets with path, modified date, and file size.
-- Open a result in the existing file detail view.
-- Add optional AI summaries only after local search works.
-
-Non-goals:
-
-- Editing files.
-- Running shell commands.
-- Auto-changing notes or documents.
-- Indexing the whole laptop.
-- Sending large private files to an AI provider by default.
-
-Milestone 10 - Content Index
-
-- [ ] Add SQLite database path to config.
-- [ ] Create indexed file table with root ID, relative path, size, mtime, hash, and extracted text.
-- [ ] Add SQLite FTS table for searchable content.
-- [ ] Extract text from `.txt`, `.md`, `.json`, `.csv`, `.log`, `.py`, `.js`, `.ts`, `.html`, and `.css`.
-- [ ] Skip binary and oversized files clearly.
-- [ ] Add incremental reindexing based on size and modified time.
-- [ ] Add tests for indexing, updates, deletes, and skipped files.
-
-Acceptance:
-
-- Reindexing a configured root creates a local searchable database.
-- Re-running indexing updates changed files without duplicating rows.
-- Deleted or moved files disappear from search results after reindexing.
-
-Milestone 11 - Content Search UX
-
-- [ ] Add `/index` owner-only command.
-- [ ] Add `/content <query>` command for full-text search.
-- [ ] Return compact numbered results with snippets.
-- [ ] Make each content-search result selectable.
-- [ ] Reuse the existing file detail screen after result selection.
-- [ ] Log index and content-search actions to the audit log.
-
-Acceptance:
-
-- `/content telegram config` finds files by text inside the file, not only by filename.
-- A result can be opened, previewed, downloaded, archived, or deleted through the existing flow.
-- Empty, stale, and permission-denied cases are handled cleanly.
-
-Milestone 12 - Optional AI Summary
-
-- [ ] Add an explicit `ai.enabled` config flag, default false.
-- [ ] Add a separate AI provider config section that reads secrets only from environment variables.
-- [ ] Add `Summarize` action for indexed text files.
-- [ ] Limit summary input size and show when content was truncated.
-- [ ] Never summarize files outside allowlisted roots.
-- [ ] Log summary actions without logging private file content.
-
-Acceptance:
-
-- AI summaries are opt-in.
-- The bot summarizes only the selected file or selected snippets.
-- The user can still use all MVP 2 search features with AI disabled.
-
-MVP 2 finish line:
-
-- I can ask Telegram to find files by content across my allowlisted folders.
-- I can open, preview, and download the result from my phone.
-- The index updates predictably.
-- Private content does not leave the laptop unless I explicitly enable and use AI summaries.
-
-## Deferred Risks
-
-- Telegram file-size limits may affect large documents and media.
-- Laptop sleep/offline state means the bot cannot respond.
-- Editing files from chat can easily corrupt important files without backup and diff UX.
-- GPT/Codex file access needs strict boundaries to avoid leaking private data or changing files unexpectedly.

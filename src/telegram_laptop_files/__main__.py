@@ -79,6 +79,11 @@ def _format_summary(config: AppConfig) -> str:
         f"Bot token env: {config.telegram.bot_token_env} ({'set' if config.telegram.bot_token else 'not set'})",
         f"Max preview bytes: {config.filesystem.max_preview_bytes}",
         f"Max upload bytes: {config.filesystem.max_upload_bytes}",
+        f"Search result limit: {config.filesystem.search_result_limit}",
+        f"Content search max bytes: {config.filesystem.content_search_max_bytes}",
+        f"Search snippet chars: {config.filesystem.search_snippet_chars}",
+        f"Searchable extensions: {', '.join(config.filesystem.searchable_extensions)}",
+        f"Search exclude names: {', '.join(config.filesystem.search_exclude_names)}",
         f"Audit log path: {config.logging.audit_log_path}",
         "Roots:",
     ]

@@ -26,16 +26,19 @@ from telegram.ext import (
 
 from .audit import AuditLog
 from .config import AppConfig, RootConfig
-from .filesystem import FileMetadata, FilesystemError, FilesystemResolver
+from .filesystem import ContentSearchResult, FileMetadata, FilesystemError, FilesystemResolver
 from .messages import (
+    format_content_search_results_message,
     format_delete_confirmation_message,
     format_directory_message,
     format_file_detail_message,
     format_help_message,
     format_preview_message,
+    format_recent_files_message,
     format_roots_message,
     format_search_results_message,
     format_size,
+    format_status_message,
     format_unsupported_preview_message,
     is_previewable_file,
 )
@@ -59,7 +62,6 @@ CallbackKind = Literal[
 CALLBACK_PREFIX = "fs:"
 DIRECTORY_PAGE_SIZE = 8
 DELETE_CONFIRMATION_TTL = timedelta(minutes=5)
-SEARCH_RESULT_LIMIT = 20
 MIN_PREFIX_SELECTOR_LENGTH = 3
 POLLING_NETWORK_RETRY_INITIAL_SECONDS = 5
 POLLING_NETWORK_RETRY_MAX_SECONDS = 60
@@ -168,7 +170,10 @@ def build_application(config: AppConfig, audit_log: AuditLog | None = None) -> A
 
     application.add_handler(CommandHandler("start", _guarded(config, start_command)))
     application.add_handler(CommandHandler("roots", _guarded(config, roots_command)))
+    application.add_handler(CommandHandler("recent", _guarded(config, recent_command)))
     application.add_handler(CommandHandler("search", _guarded(config, search_command)))
+    application.add_handler(CommandHandler("content", _guarded(config, content_command)))
+    application.add_handler(CommandHandler("status", _guarded(config, status_command)))
     application.add_handler(CommandHandler("help", _guarded(config, help_command)))
     application.add_handler(CommandHandler("cancel", _guarded(config, cancel_command)))
     application.add_handler(CallbackQueryHandler(_guarded(config, filesystem_callback)))
@@ -253,9 +258,35 @@ async def roots_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await _reply_text(update, format_roots_message(config.filesystem.roots))
 
 
+async def recent_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _run_recent(update, context)
+
+
 async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = " ".join(context.args).strip()
     await _run_search(update, context, query)
+
+
+async def content_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = " ".join(context.args).strip()
+    await _run_content_search(update, context, query)
+
+
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    config = _config_from_context(context)
+    session = _session_from_context(context)
+    session_path = None if session is None else _format_session_path(session.root_id, session.relative_path)
+    audit_writable = _audit_log_is_writable(config)
+    await _reply_text(
+        update,
+        format_status_message(
+            config,
+            audit_writable=audit_writable,
+            proxy_configured=_telegram_proxy_from_environment() is not None,
+            session_path=session_path,
+        ),
+    )
+    _audit(context, update, "status", status="ok", audit_writable=audit_writable)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -308,9 +339,19 @@ async def _handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_t
     if command == "/roots":
         await roots_command(update, context)
         return
+    if command == "/recent":
+        await _run_recent(update, context)
+        return
     if command == "/search" or command.startswith("/search "):
         _, _, query = raw_text.partition(" ")
         await _run_search(update, context, query.strip())
+        return
+    if command == "/content" or command.startswith("/content "):
+        _, _, query = raw_text.partition(" ")
+        await _run_content_search(update, context, query.strip())
+        return
+    if command == "/status":
+        await status_command(update, context)
         return
     if session is None:
         if _is_number_selector(command) or _is_slash_selector(raw_text):
@@ -670,7 +711,7 @@ async def _show_file_detail(
 
 async def _run_search(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str) -> None:
     if not query:
-        await _reply_text(update, "Usage: <code>/search &lt;query&gt;</code>")
+        await _reply_text(update, "Usage: <code>/search &lt;query&gt;</code>\nExample: <code>/search invoice pdf</code>")
         return
 
     config = _config_from_context(context)
@@ -678,15 +719,62 @@ async def _run_search(update: Update, context: ContextTypes.DEFAULT_TYPE, query:
     store = _callback_store_from_context(context)
     results = resolver.search_files(
         query,
-        limit=SEARCH_RESULT_LIMIT,
+        limit=config.filesystem.search_result_limit,
         show_hidden_files=config.filesystem.show_hidden_files,
+        exclude_names=config.filesystem.search_exclude_names,
     )
     await _reply_text(
         update,
-        format_search_results_message(query, results, SEARCH_RESULT_LIMIT),
+        format_search_results_message(query, results, config.filesystem.search_result_limit),
         reply_markup=_search_results_keyboard(results, store),
     )
     _audit(context, update, "search", status="ok", query=query, result_count=len(results))
+
+
+async def _run_recent(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    config = _config_from_context(context)
+    resolver = _resolver_from_context(context)
+    store = _callback_store_from_context(context)
+    results = resolver.recent_files(
+        limit=config.filesystem.search_result_limit,
+        show_hidden_files=config.filesystem.show_hidden_files,
+        exclude_names=config.filesystem.search_exclude_names,
+        exclude_paths=_audit_log_exclude_paths(config),
+    )
+    await _reply_text(
+        update,
+        format_recent_files_message(results, config.filesystem.search_result_limit),
+        reply_markup=_search_results_keyboard(results, store),
+    )
+    _audit(context, update, "recent", status="ok", result_count=len(results))
+
+
+async def _run_content_search(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str) -> None:
+    if not query:
+        await _reply_text(
+            update,
+            "Usage: <code>/content &lt;query&gt;</code>\nExample: <code>/content meeting notes</code>",
+        )
+        return
+
+    config = _config_from_context(context)
+    resolver = _resolver_from_context(context)
+    store = _callback_store_from_context(context)
+    results = resolver.search_content(
+        query,
+        limit=config.filesystem.search_result_limit,
+        searchable_extensions=config.filesystem.searchable_extensions,
+        max_file_bytes=config.filesystem.content_search_max_bytes,
+        snippet_chars=config.filesystem.search_snippet_chars,
+        show_hidden_files=config.filesystem.show_hidden_files,
+        exclude_names=config.filesystem.search_exclude_names,
+    )
+    await _reply_text(
+        update,
+        format_content_search_results_message(query, results, config.filesystem.search_result_limit),
+        reply_markup=_content_search_results_keyboard(results, store),
+    )
+    _audit(context, update, "content_search", status="ok", query=query, result_count=len(results))
 
 
 async def _show_delete_confirmation(
@@ -1221,6 +1309,13 @@ def _search_results_keyboard(
     return InlineKeyboardMarkup(rows)
 
 
+def _content_search_results_keyboard(
+    results: tuple[ContentSearchResult, ...],
+    store: CallbackActionStore,
+) -> InlineKeyboardMarkup | None:
+    return _search_results_keyboard(tuple(result.metadata for result in results), store)
+
+
 def _directory_keyboard_after_file(metadata: FileMetadata, store: CallbackActionStore) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
@@ -1374,6 +1469,41 @@ def _selector_index(text: str) -> int | None:
 
 def _slash_selector(text: str) -> str:
     return text.removeprefix("/").strip().removesuffix("/")
+
+
+def _format_session_path(root_id: str, relative_path: str) -> str:
+    if not relative_path:
+        return f"{root_id}:/"
+    return f"{root_id}:/{relative_path}"
+
+
+def _audit_log_is_writable(config: AppConfig) -> bool:
+    try:
+        AuditLog(config.logging.audit_log_path).validate()
+    except OSError:
+        return False
+    return True
+
+
+def _audit_log_exclude_paths(config: AppConfig) -> tuple[tuple[str, str], ...]:
+    paths: list[tuple[str, str]] = []
+    try:
+        audit_path = config.logging.audit_log_path.resolve(strict=False)
+    except OSError:
+        return ()
+
+    for root in config.filesystem.roots:
+        if _path_is_relative_to(audit_path, root.path):
+            paths.append((root.id, audit_path.relative_to(root.path).as_posix()))
+    return tuple(paths)
+
+
+def _path_is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
 
 
 def _directory_keyboard(

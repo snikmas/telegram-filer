@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import fnmatch
 import os
 from pathlib import Path
 import shutil
@@ -70,6 +71,12 @@ class ArchiveResult:
     path: Path
     size_bytes: int
     cleanup_directory: tempfile.TemporaryDirectory[str]
+
+
+@dataclass(frozen=True)
+class ContentSearchResult:
+    metadata: FileMetadata
+    snippet: str
 
 
 class FilesystemResolver:
@@ -256,12 +263,14 @@ class FilesystemResolver:
         *,
         limit: int,
         show_hidden_files: bool = True,
+        exclude_names: tuple[str, ...] = (),
     ) -> tuple[FileMetadata, ...]:
         tokens = tokenize_search_query(query)
         if not tokens:
             return ()
 
         results: list[FileMetadata] = []
+        exclude_patterns = _search_exclude_patterns(exclude_names)
         for root in self._roots_by_id.values():
             for current_dir, dir_names, file_names in os.walk(root.path, topdown=True, followlinks=False):
                 current_path = Path(current_dir)
@@ -275,23 +284,29 @@ class FilesystemResolver:
                     continue
 
                 dir_names[:] = sorted(
-                    [name for name in dir_names if show_hidden_files or not name.startswith(".")],
+                    [
+                        name
+                        for name in dir_names
+                        if (show_hidden_files or not name.startswith("."))
+                        and not _matches_search_exclude(name, exclude_patterns)
+                    ],
                     key=str.casefold,
                 )
 
                 for filename in sorted(file_names, key=str.casefold):
                     if not show_hidden_files and filename.startswith("."):
                         continue
-                    normalized_name = filename.casefold()
-                    if any(token not in normalized_name for token in tokens):
+                    if _matches_search_exclude(filename, exclude_patterns):
                         continue
-
                     child = current_resolved / filename
                     try:
                         child_resolved = child.resolve(strict=True)
                         if not _is_relative_to(child_resolved, root.path):
                             continue
                         relative_path = _relative_to_root(root.path, child_resolved)
+                        normalized_target = f"{filename} {relative_path}".casefold()
+                        if any(token not in normalized_target for token in tokens):
+                            continue
                         metadata = self.metadata(root.id, relative_path)
                     except (FilesystemError, OSError, ValueError):
                         continue
@@ -303,6 +318,136 @@ class FilesystemResolver:
                         return tuple(results)
 
         return tuple(results)
+
+    def search_content(
+        self,
+        query: str,
+        *,
+        limit: int,
+        searchable_extensions: tuple[str, ...],
+        max_file_bytes: int,
+        snippet_chars: int,
+        show_hidden_files: bool = True,
+        exclude_names: tuple[str, ...] = (),
+    ) -> tuple[ContentSearchResult, ...]:
+        tokens = tokenize_search_query(query)
+        if not tokens:
+            return ()
+
+        results: list[ContentSearchResult] = []
+        extension_set = frozenset(extension.casefold() for extension in searchable_extensions)
+        exclude_patterns = _search_exclude_patterns(exclude_names)
+        for root in self._roots_by_id.values():
+            for current_dir, dir_names, file_names in os.walk(root.path, topdown=True, followlinks=False):
+                current_path = Path(current_dir)
+                try:
+                    current_resolved = current_path.resolve(strict=True)
+                except OSError:
+                    dir_names[:] = []
+                    continue
+                if not _is_relative_to(current_resolved, root.path):
+                    dir_names[:] = []
+                    continue
+
+                dir_names[:] = sorted(
+                    [
+                        name
+                        for name in dir_names
+                        if (show_hidden_files or not name.startswith("."))
+                        and not _matches_search_exclude(name, exclude_patterns)
+                    ],
+                    key=str.casefold,
+                )
+
+                for filename in sorted(file_names, key=str.casefold):
+                    if not show_hidden_files and filename.startswith("."):
+                        continue
+                    if _matches_search_exclude(filename, exclude_patterns):
+                        continue
+                    if not _has_searchable_extension(filename, extension_set):
+                        continue
+
+                    child = current_resolved / filename
+                    try:
+                        child_resolved = child.resolve(strict=True)
+                        if not _is_relative_to(child_resolved, root.path):
+                            continue
+                        relative_path = _relative_to_root(root.path, child_resolved)
+                        metadata = self.metadata(root.id, relative_path)
+                        if metadata.kind != "file" or metadata.size_bytes > max_file_bytes:
+                            continue
+                        text = _read_searchable_text(child_resolved, metadata.relative_path)
+                    except (FilesystemError, OSError, UnicodeError, ValueError):
+                        continue
+
+                    normalized_text = text.casefold()
+                    if any(token not in normalized_text for token in tokens):
+                        continue
+
+                    results.append(
+                        ContentSearchResult(
+                            metadata=metadata,
+                            snippet=_content_snippet(text, tokens, max_chars=snippet_chars),
+                        )
+                    )
+                    if len(results) >= limit:
+                        return tuple(results)
+
+        return tuple(results)
+
+    def recent_files(
+        self,
+        *,
+        limit: int,
+        show_hidden_files: bool = True,
+        exclude_names: tuple[str, ...] = (),
+        exclude_paths: tuple[tuple[str, str], ...] = (),
+    ) -> tuple[FileMetadata, ...]:
+        results: list[FileMetadata] = []
+        exclude_patterns = _search_exclude_patterns(exclude_names)
+        excluded_path_set = set(exclude_paths)
+        for root in self._roots_by_id.values():
+            for current_dir, dir_names, file_names in os.walk(root.path, topdown=True, followlinks=False):
+                current_path = Path(current_dir)
+                try:
+                    current_resolved = current_path.resolve(strict=True)
+                except OSError:
+                    dir_names[:] = []
+                    continue
+                if not _is_relative_to(current_resolved, root.path):
+                    dir_names[:] = []
+                    continue
+
+                dir_names[:] = sorted(
+                    [
+                        name
+                        for name in dir_names
+                        if (show_hidden_files or not name.startswith("."))
+                        and not _matches_search_exclude(name, exclude_patterns)
+                    ],
+                    key=str.casefold,
+                )
+
+                for filename in file_names:
+                    if not show_hidden_files and filename.startswith("."):
+                        continue
+                    if _matches_search_exclude(filename, exclude_patterns):
+                        continue
+                    child = current_resolved / filename
+                    try:
+                        child_resolved = child.resolve(strict=True)
+                        if not _is_relative_to(child_resolved, root.path):
+                            continue
+                        relative_path = _relative_to_root(root.path, child_resolved)
+                        if (root.id, relative_path) in excluded_path_set:
+                            continue
+                        metadata = self.metadata(root.id, relative_path)
+                    except (FilesystemError, OSError, ValueError):
+                        continue
+                    if metadata.kind == "file":
+                        results.append(metadata)
+
+        return tuple(sorted(results, key=lambda metadata: metadata.modified_at, reverse=True)[:limit])
 
     def _root(self, root_id: str) -> RootConfig:
         try:
@@ -349,6 +494,56 @@ def _metadata_sort_key(metadata: FileMetadata) -> tuple[int, str]:
 
 def tokenize_search_query(query: str) -> tuple[str, ...]:
     return tuple(part.casefold() for part in query.split() if part.strip())
+
+
+def _has_searchable_extension(filename: str, extensions: frozenset[str]) -> bool:
+    name = Path(filename).name.casefold()
+    return name in extensions or Path(name).suffix.casefold() in extensions
+
+
+def _search_exclude_patterns(exclude_names: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(pattern.casefold() for pattern in exclude_names)
+
+
+def _matches_search_exclude(name: str, exclude_patterns: tuple[str, ...]) -> bool:
+    normalized_name = name.casefold()
+    return any(fnmatch.fnmatchcase(normalized_name, pattern) for pattern in exclude_patterns)
+
+
+def _read_searchable_text(path: Path, relative_path: str) -> str:
+    try:
+        raw = path.read_bytes()
+    except FileNotFoundError as exc:
+        raise FileNotFoundInRootError(f"Path not found in root during content search: {relative_path}") from exc
+    except PermissionError as exc:
+        raise FilesystemError(f"Permission denied during content search: {relative_path}") from exc
+    except OSError as exc:
+        raise FilesystemError(f"File cannot be searched: {relative_path}") from exc
+
+    if b"\x00" in raw:
+        raise FilesystemError(f"File appears to be binary: {relative_path}")
+    return raw.decode("utf-8", errors="replace")
+
+
+def _content_snippet(text: str, tokens: tuple[str, ...], *, max_chars: int) -> str:
+    normalized_text = text.casefold()
+    match_indexes: list[int] = []
+    for token in tokens:
+        index = normalized_text.find(token)
+        if index >= 0:
+            match_indexes.append(index)
+    center = min(match_indexes) if match_indexes else 0
+    half_window = max(1, max_chars // 2)
+    start = max(0, center - half_window)
+    end = min(len(text), start + max_chars)
+    start = max(0, end - max_chars)
+
+    snippet = " ".join(text[start:end].split())
+    if start > 0:
+        snippet = f"...{snippet}"
+    if end < len(text):
+        snippet = f"{snippet}..."
+    return snippet
 
 
 def _trash_directories() -> tuple[Path, Path]:

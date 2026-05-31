@@ -35,6 +35,11 @@ class FilesystemConfig:
     show_hidden_files: bool
     oversized_file_action: str
     delete_mode: str
+    search_result_limit: int
+    content_search_max_bytes: int
+    search_snippet_chars: int
+    searchable_extensions: tuple[str, ...]
+    search_exclude_names: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -96,6 +101,61 @@ def _parse_config(raw: dict[str, Any], base_dir: Path) -> AppConfig:
     roots = _roots(filesystem_raw.get("roots"))
     max_preview_bytes = _positive_int(filesystem_raw.get("max_preview_bytes", 12000), "filesystem.max_preview_bytes")
     max_upload_bytes = _positive_int(filesystem_raw.get("max_upload_bytes", 45000000), "filesystem.max_upload_bytes")
+    search_result_limit = _positive_int(
+        filesystem_raw.get("search_result_limit", 10),
+        "filesystem.search_result_limit",
+    )
+    content_search_max_bytes = _positive_int(
+        filesystem_raw.get("content_search_max_bytes", 250000),
+        "filesystem.content_search_max_bytes",
+    )
+    search_snippet_chars = _positive_int(
+        filesystem_raw.get("search_snippet_chars", 160),
+        "filesystem.search_snippet_chars",
+    )
+    searchable_extensions = _extensions(
+        filesystem_raw.get(
+            "searchable_extensions",
+            [
+                ".cfg",
+                ".conf",
+                ".csv",
+                ".css",
+                ".html",
+                ".ini",
+                ".js",
+                ".json",
+                ".log",
+                ".md",
+                ".py",
+                ".rst",
+                ".toml",
+                ".ts",
+                ".txt",
+                ".xml",
+                ".yaml",
+                ".yml",
+            ],
+        ),
+        "filesystem.searchable_extensions",
+    )
+    search_exclude_names = _string_list(
+        filesystem_raw.get(
+            "search_exclude_names",
+            [
+                ".git",
+                ".venv",
+                "__pycache__",
+                ".pytest_cache",
+                "node_modules",
+                "dist",
+                "build",
+                ".env",
+                ".env.*",
+            ],
+        ),
+        "filesystem.search_exclude_names",
+    )
 
     audit_log_path = _path(logging_raw.get("audit_log_path", "./data/audit.jsonl"), "logging.audit_log_path")
     if not audit_log_path.is_absolute():
@@ -119,6 +179,11 @@ def _parse_config(raw: dict[str, Any], base_dir: Path) -> AppConfig:
                 "filesystem.oversized_file_action",
             ),
             delete_mode=_string(filesystem_raw.get("delete_mode", "trash"), "filesystem.delete_mode"),
+            search_result_limit=search_result_limit,
+            content_search_max_bytes=content_search_max_bytes,
+            search_snippet_chars=search_snippet_chars,
+            searchable_extensions=searchable_extensions,
+            search_exclude_names=search_exclude_names,
         ),
         logging=LoggingConfig(audit_log_path=audit_log_path),
     )
@@ -156,6 +221,41 @@ def _owner_ids(value: Any) -> tuple[int, ...]:
             raise ConfigError(f"telegram.owner_user_ids[{index}] must be a positive integer")
         owner_ids.append(user_id)
     return tuple(owner_ids)
+
+
+def _extensions(value: Any, name: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or not value:
+        raise ConfigError(f"{name} must be a non-empty list")
+
+    extensions: list[str] = []
+    seen: set[str] = set()
+    for index, item in enumerate(value):
+        extension = _string(item, f"{name}[{index}]").casefold()
+        if not extension.startswith("."):
+            raise ConfigError(f"{name}[{index}] must start with '.'")
+        if "/" in extension or "\\" in extension:
+            raise ConfigError(f"{name}[{index}] must be a file extension, not a path")
+        if extension not in seen:
+            extensions.append(extension)
+            seen.add(extension)
+    return tuple(extensions)
+
+
+def _string_list(value: Any, name: str) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        raise ConfigError(f"{name} must be a list")
+
+    items: list[str] = []
+    seen: set[str] = set()
+    for index, item in enumerate(value):
+        normalized = _string(item, f"{name}[{index}]")
+        if "/" in normalized or "\\" in normalized:
+            raise ConfigError(f"{name}[{index}] must be a name or glob pattern, not a path")
+        key = normalized.casefold()
+        if key not in seen:
+            items.append(normalized)
+            seen.add(key)
+    return tuple(items)
 
 
 def _roots(value: Any) -> tuple[RootConfig, ...]:

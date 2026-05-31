@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime, timezone
 import os
 import tempfile
 import unittest
@@ -229,8 +230,176 @@ class FilesystemResolverTests(unittest.TestCase):
 
             self.assertEqual(["invoice-1.pdf"], [result.relative_path for result in results])
 
+    def test_search_files_skips_excluded_files_and_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = Path(temp_dir).resolve()
+            (root_path / ".git").mkdir()
+            (root_path / ".git" / "invoice.pdf").write_text("git", encoding="utf-8")
+            (root_path / "node_modules").mkdir()
+            (root_path / "node_modules" / "invoice.pdf").write_text("node", encoding="utf-8")
+            (root_path / ".env").write_text("invoice", encoding="utf-8")
+            (root_path / ".env.local").write_text("invoice", encoding="utf-8")
+            (root_path / ".useful-invoice.pdf").write_text("hidden useful", encoding="utf-8")
+            (root_path / "invoice.pdf").write_text("visible", encoding="utf-8")
+            resolver = FilesystemResolver((RootConfig(id="work", display_name="Work", path=root_path),))
+
+            results = resolver.search_files(
+                "invoice",
+                limit=10,
+                show_hidden_files=True,
+                exclude_names=(".git", "node_modules", ".env", ".env.*"),
+            )
+
+            self.assertEqual([".useful-invoice.pdf", "invoice.pdf"], [result.relative_path for result in results])
+
+    def test_search_files_matches_relative_path_tokens(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = Path(temp_dir).resolve()
+            invoices = root_path / "Invoices"
+            invoices.mkdir()
+            (invoices / "March.pdf").write_text("1", encoding="utf-8")
+            (root_path / "March.pdf").write_text("2", encoding="utf-8")
+            resolver = FilesystemResolver((RootConfig(id="work", display_name="Work", path=root_path),))
+
+            results = resolver.search_files("invoices march", limit=10)
+
+            self.assertEqual(["Invoices/March.pdf"], [result.relative_path for result in results])
+
     def test_tokenizes_search_query(self) -> None:
         self.assertEqual(("invoice", "pdf"), tokenize_search_query("  Invoice   PDF "))
+
+    def test_search_content_matches_text_and_returns_snippet(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = Path(temp_dir).resolve()
+            (root_path / "notes.md").write_text(
+                "Today we discussed Telegram config and search behavior.",
+                encoding="utf-8",
+            )
+            (root_path / "other.md").write_text("Nothing relevant here.", encoding="utf-8")
+            resolver = FilesystemResolver((RootConfig(id="work", display_name="Work", path=root_path),))
+
+            results = resolver.search_content(
+                "telegram config",
+                limit=10,
+                searchable_extensions=(".md", ".txt"),
+                max_file_bytes=1000,
+                snippet_chars=80,
+            )
+
+            self.assertEqual(["notes.md"], [result.metadata.relative_path for result in results])
+            self.assertIn("Telegram config", results[0].snippet)
+
+    def test_search_content_skips_binary_oversized_and_unconfigured_extensions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = Path(temp_dir).resolve()
+            (root_path / "binary.txt").write_bytes(b"telegram\x00config")
+            (root_path / "large.md").write_text("telegram config", encoding="utf-8")
+            (root_path / "image.jpg").write_text("telegram config", encoding="utf-8")
+            resolver = FilesystemResolver((RootConfig(id="work", display_name="Work", path=root_path),))
+
+            results = resolver.search_content(
+                "telegram config",
+                limit=10,
+                searchable_extensions=(".md", ".txt"),
+                max_file_bytes=10,
+                snippet_chars=80,
+            )
+
+            self.assertEqual((), results)
+
+    def test_search_content_handles_empty_results(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = Path(temp_dir).resolve()
+            (root_path / "notes.md").write_text("no match", encoding="utf-8")
+            resolver = FilesystemResolver((RootConfig(id="work", display_name="Work", path=root_path),))
+
+            results = resolver.search_content(
+                "telegram config",
+                limit=10,
+                searchable_extensions=(".md",),
+                max_file_bytes=1000,
+                snippet_chars=80,
+            )
+
+            self.assertEqual((), results)
+
+    def test_search_content_skips_permission_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = Path(temp_dir).resolve()
+            unreadable = root_path / "secret.md"
+            unreadable.write_text("telegram config", encoding="utf-8")
+            unreadable.chmod(0)
+            resolver = FilesystemResolver((RootConfig(id="work", display_name="Work", path=root_path),))
+            try:
+                results = resolver.search_content(
+                    "telegram config",
+                    limit=10,
+                    searchable_extensions=(".md",),
+                    max_file_bytes=1000,
+                    snippet_chars=80,
+                )
+            finally:
+                unreadable.chmod(0o600)
+
+            self.assertEqual((), results)
+
+    def test_search_content_skips_excluded_files_and_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = Path(temp_dir).resolve()
+            (root_path / ".venv").mkdir()
+            (root_path / ".venv" / "secret.md").write_text("telegram config", encoding="utf-8")
+            (root_path / ".env").write_text("telegram config", encoding="utf-8")
+            (root_path / ".env.local").write_text("telegram config", encoding="utf-8")
+            (root_path / ".notes.md").write_text("telegram config hidden note", encoding="utf-8")
+            (root_path / "notes.md").write_text("telegram config visible note", encoding="utf-8")
+            resolver = FilesystemResolver((RootConfig(id="work", display_name="Work", path=root_path),))
+
+            results = resolver.search_content(
+                "telegram config",
+                limit=10,
+                searchable_extensions=(".env", ".md"),
+                max_file_bytes=1000,
+                snippet_chars=80,
+                show_hidden_files=True,
+                exclude_names=(".venv", ".env", ".env.*"),
+            )
+
+            self.assertEqual([".notes.md", "notes.md"], [result.metadata.relative_path for result in results])
+
+    def test_recent_files_returns_newest_files_and_skips_excluded_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = Path(temp_dir).resolve()
+            old_file = root_path / "old.txt"
+            new_file = root_path / "new.txt"
+            env_file = root_path / ".env"
+            folder = root_path / "folder"
+            folder.mkdir()
+            old_file.write_text("old", encoding="utf-8")
+            new_file.write_text("new", encoding="utf-8")
+            env_file.write_text("secret", encoding="utf-8")
+            old_time = datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp()
+            new_time = datetime(2026, 1, 2, tzinfo=timezone.utc).timestamp()
+            os.utime(old_file, (old_time, old_time))
+            os.utime(new_file, (new_time, new_time))
+            resolver = FilesystemResolver((RootConfig(id="work", display_name="Work", path=root_path),))
+
+            results = resolver.recent_files(limit=10, show_hidden_files=True, exclude_names=(".env",))
+
+            self.assertEqual(["new.txt", "old.txt"], [result.relative_path for result in results])
+
+    def test_recent_files_skips_explicit_excluded_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = Path(temp_dir).resolve()
+            audit_file = root_path / "data" / "audit.jsonl"
+            note_file = root_path / "note.md"
+            audit_file.parent.mkdir()
+            audit_file.write_text("audit", encoding="utf-8")
+            note_file.write_text("note", encoding="utf-8")
+            resolver = FilesystemResolver((RootConfig(id="work", display_name="Work", path=root_path),))
+
+            results = resolver.recent_files(limit=10, exclude_paths=(("work", "data/audit.jsonl"),))
+
+            self.assertEqual(["note.md"], [result.relative_path for result in results])
 
 
 class RootConfigTests(unittest.TestCase):
@@ -262,6 +431,59 @@ class RootConfigTests(unittest.TestCase):
 
             with self.assertRaises(ConfigError):
                 _parse_config(_raw_config(file_root), base_dir=base_path)
+
+    def test_config_loads_search_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            raw = _raw_config(base_path)
+            filesystem = raw["filesystem"]
+            assert isinstance(filesystem, dict)
+            filesystem["search_result_limit"] = 7
+            filesystem["content_search_max_bytes"] = 12345
+            filesystem["search_snippet_chars"] = 120
+            filesystem["searchable_extensions"] = [".md", ".TXT", ".md"]
+            filesystem["search_exclude_names"] = [".git", ".ENV", ".git"]
+
+            config = _parse_config(raw, base_dir=base_path)
+
+            self.assertEqual(7, config.filesystem.search_result_limit)
+            self.assertEqual(12345, config.filesystem.content_search_max_bytes)
+            self.assertEqual(120, config.filesystem.search_snippet_chars)
+            self.assertEqual((".md", ".txt"), config.filesystem.searchable_extensions)
+            self.assertEqual((".git", ".ENV"), config.filesystem.search_exclude_names)
+
+    def test_config_defaults_exclude_machine_files_and_do_not_search_env_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+
+            config = _parse_config(_raw_config(base_path), base_dir=base_path)
+
+            self.assertNotIn(".env", config.filesystem.searchable_extensions)
+            self.assertIn(".git", config.filesystem.search_exclude_names)
+            self.assertIn(".env", config.filesystem.search_exclude_names)
+            self.assertIn(".env.*", config.filesystem.search_exclude_names)
+
+    def test_config_rejects_invalid_search_extension(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            raw = _raw_config(base_path)
+            filesystem = raw["filesystem"]
+            assert isinstance(filesystem, dict)
+            filesystem["searchable_extensions"] = ["md"]
+
+            with self.assertRaises(ConfigError):
+                _parse_config(raw, base_dir=base_path)
+
+    def test_config_rejects_invalid_search_exclude_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            raw = _raw_config(base_path)
+            filesystem = raw["filesystem"]
+            assert isinstance(filesystem, dict)
+            filesystem["search_exclude_names"] = ["cache/files"]
+
+            with self.assertRaises(ConfigError):
+                _parse_config(raw, base_dir=base_path)
 
 
 def _raw_config(root_path: Path) -> dict[str, object]:

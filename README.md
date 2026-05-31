@@ -30,9 +30,12 @@ Milestones 1 through 8 are in place, and milestone 9 packaging is in place excep
 - Oversized-file metadata plus compressed archive creation and upload when the archive fits.
 - Expiring delete confirmation that moves files to the user's trash.
 - Folder deletion remains disabled for the MVP.
-- `/search <query>` filename search across all configured roots.
-- Case-insensitive multi-token search results with path, size, modified date, and selectable buttons.
-- Append-only JSONL audit log for auth, browse, preview, download, archive, delete, search, startup, and shutdown events.
+- `/recent` recently modified files across configured roots.
+- `/search <query>` filename/path search across all configured roots.
+- `/content <query>` content search inside configured text-like files.
+- `/status` runtime health summary for token, proxy, audit log, roots, and limits.
+- Case-insensitive multi-token search results with path, size, modified date, snippets for content matches, and selectable buttons.
+- Append-only JSONL audit log for auth, browse, preview, download, archive, delete, search, recent, status, startup, and shutdown events.
 - Startup validation for config, token, root paths, and audit log writability.
 - Local run script plus user-level systemd service template.
 
@@ -99,8 +102,13 @@ Use `/start` or `/roots` in Telegram, then send a listed number or `/root-name`
 to choose a root. Inside a folder, send a listed number to open that item or
 `/folder-name` to enter a folder by exact name or unique 3+ character prefix. File detail
 screens show compact buttons for preview, download, compression, delete confirmation, and back navigation.
-Use `/search invoice pdf` to search filenames across configured roots and tap a result
-number to open its file detail screen. Full controls are available from `/help`.
+Use `/search invoice pdf` to search filenames and relative paths across configured roots.
+Use `/content meeting notes` to search inside text-like files. Tap a result
+number to open its file detail screen. Use `/recent` when you remember roughly
+when a file changed, not its name or folder. Use `/status` to check local health
+from Telegram. Full controls are available from `/help`.
+Search and content results skip configured machine or sensitive names such as
+`.git`, `.venv`, `node_modules`, `.env`, and `.env.*` by default.
 
 ## Config
 
@@ -120,6 +128,20 @@ telegram:
 
 Audit events are written as JSONL to `logging.audit_log_path`. The default is
 `./data/audit.jsonl`; the parent directory is created at startup.
+
+Search limits are configured under `filesystem`:
+
+- `search_result_limit`: maximum returned results.
+- `content_search_max_bytes`: maximum file size read during content search.
+- `search_snippet_chars`: maximum snippet length for content matches.
+- `searchable_extensions`: text-like extensions eligible for content search.
+- `search_exclude_names`: file or directory names, with optional glob patterns,
+  skipped by filename and content search.
+
+`show_hidden_files` still controls whether hidden files are visible while
+browsing. Search has the additional `search_exclude_names` filter so noisy
+machine folders and secret files do not dominate results. `.env` is excluded
+from content search by default because snippets can expose tokens or credentials.
 
 ## Systemd
 
@@ -171,5 +193,5 @@ Run the tests:
 
 ```bash
 .venv/bin/python -m pip install pytest
-.venv/bin/pytest -q
+.venv/bin/python -m pytest -q
 ```

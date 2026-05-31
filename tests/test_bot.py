@@ -1,35 +1,42 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import unittest
+import unittest.mock
 
 from telegram_laptop_files.bot import (
     CALLBACK_PREFIX,
     CallbackAction,
     CallbackActionStore,
+    _content_search_results_keyboard,
     PendingDeleteStore,
+    _audit_log_exclude_paths,
     _clear_browser_session,
     _delete_confirmation_keyboard,
     _file_detail_keyboard,
     _search_results_keyboard,
     _named_entry_matches,
+    _format_session_path,
     _polling_retry_delay,
     _root_match,
     _selector_index,
     _visible_directory_entries,
     _telegram_proxy_from_environment,
     format_delete_confirmation_message,
+    format_content_search_results_message,
     format_directory_message,
     format_file_detail_message,
     format_help_message,
     format_preview_message,
+    format_recent_files_message,
     format_roots_message,
     format_search_results_message,
+    format_status_message,
     format_size,
     is_authorized_user_id,
     is_previewable_file,
 )
-from telegram_laptop_files.config import RootConfig
-from telegram_laptop_files.filesystem import FileMetadata, TextPreview
+from telegram_laptop_files.config import AppConfig, FilesystemConfig, LoggingConfig, RootConfig, TelegramConfig
+from telegram_laptop_files.filesystem import ContentSearchResult, FileMetadata, TextPreview
 
 
 class BotCommandHelperTests(unittest.TestCase):
@@ -54,8 +61,18 @@ class BotCommandHelperTests(unittest.TestCase):
     def test_help_message_lists_milestone_two_commands(self) -> None:
         message = format_help_message()
 
-        for command in ("/start", "/roots", "/search <query>", "/help", "/cancel"):
+        for command in (
+            "/start",
+            "/roots",
+            "/recent",
+            "/search &lt;query&gt;",
+            "/content &lt;query&gt;",
+            "/status",
+            "/help",
+            "/cancel",
+        ):
             self.assertIn(command, message)
+        self.assertNotIn("<query>", message)
         self.assertIn("unique 3+ character prefix", message)
 
     def test_root_match_accepts_display_name_prefix(self) -> None:
@@ -274,6 +291,136 @@ class BotCommandHelperTests(unittest.TestCase):
         assert keyboard is not None
         button_texts = [button.text for row in keyboard.inline_keyboard for button in row]
         self.assertEqual(["1", "2", "3"], button_texts)
+
+    def test_content_search_results_message_includes_snippet(self) -> None:
+        result = ContentSearchResult(
+            metadata=FileMetadata(
+                root_id="work",
+                relative_path="notes/today.md",
+                name="today.md",
+                kind="file",
+                size_bytes=1024,
+                modified_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+            ),
+            snippet="Discussed Telegram config and content search.",
+        )
+
+        message = format_content_search_results_message("telegram config", (result,), limit=10)
+
+        self.assertIn("Content search results", message)
+        self.assertIn("work:/notes/today.md", message)
+        self.assertIn("Discussed Telegram config", message)
+
+    def test_content_search_results_keyboard_makes_each_result_selectable(self) -> None:
+        store = CallbackActionStore()
+        results = tuple(
+            ContentSearchResult(
+                metadata=FileMetadata(
+                    root_id="work",
+                    relative_path=f"file-{index}.md",
+                    name=f"file-{index}.md",
+                    kind="file",
+                    size_bytes=1,
+                    modified_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+                ),
+                snippet="telegram config",
+            )
+            for index in range(3)
+        )
+
+        keyboard = _content_search_results_keyboard(results, store)
+
+        self.assertIsNotNone(keyboard)
+        assert keyboard is not None
+        button_texts = [button.text for row in keyboard.inline_keyboard for button in row]
+        self.assertEqual(["1", "2", "3"], button_texts)
+
+    def test_recent_files_message_uses_search_result_shape(self) -> None:
+        metadata = FileMetadata(
+            root_id="work",
+            relative_path="notes/today.md",
+            name="today.md",
+            kind="file",
+            size_bytes=1024,
+            modified_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        )
+
+        message = format_recent_files_message((metadata,), limit=10)
+
+        self.assertIn("Recent files", message)
+        self.assertIn("<code>1)</code>", message)
+        self.assertIn("work:/notes/today.md", message)
+        self.assertIn("2026-01-02", message)
+
+    def test_status_message_summarizes_runtime_health_without_secrets(self) -> None:
+        config = AppConfig(
+            name="tg-filer",
+            telegram=TelegramConfig(
+                framework="python-telegram-bot",
+                bot_token_env="TG_FILER_BOT_TOKEN",
+                owner_user_ids=(123,),
+                bot_token="secret-token",
+            ),
+            filesystem=FilesystemConfig(
+                roots=(RootConfig(id="work", display_name="Work", path=Path("/tmp/work")),),
+                max_preview_bytes=12000,
+                max_upload_bytes=45_000_000,
+                show_hidden_files=True,
+                oversized_file_action="metadata_and_compress",
+                delete_mode="trash",
+                search_result_limit=10,
+                content_search_max_bytes=250_000,
+                search_snippet_chars=160,
+                searchable_extensions=(".md",),
+                search_exclude_names=(".git",),
+            ),
+            logging=LoggingConfig(audit_log_path=Path("/tmp/audit.jsonl")),
+        )
+
+        message = format_status_message(
+            config,
+            audit_writable=True,
+            proxy_configured=False,
+            session_path="work:/notes",
+        )
+
+        self.assertIn("tg-filer status", message)
+        self.assertIn("Token: set", message)
+        self.assertIn("Proxy: not configured", message)
+        self.assertIn("Audit log: writable", message)
+        self.assertIn("Session: <code>work:/notes</code>", message)
+        self.assertNotIn("secret-token", message)
+
+    def test_format_session_path_handles_root_and_nested_paths(self) -> None:
+        self.assertEqual("work:/", _format_session_path("work", ""))
+        self.assertEqual("work:/notes/today.md", _format_session_path("work", "notes/today.md"))
+
+    def test_audit_log_exclude_paths_maps_audit_path_under_roots(self) -> None:
+        config = AppConfig(
+            name="tg-filer",
+            telegram=TelegramConfig(
+                framework="python-telegram-bot",
+                bot_token_env="TG_FILER_BOT_TOKEN",
+                owner_user_ids=(123,),
+                bot_token="secret-token",
+            ),
+            filesystem=FilesystemConfig(
+                roots=(RootConfig(id="work", display_name="Work", path=Path("/tmp/work")),),
+                max_preview_bytes=12000,
+                max_upload_bytes=45_000_000,
+                show_hidden_files=True,
+                oversized_file_action="metadata_and_compress",
+                delete_mode="trash",
+                search_result_limit=10,
+                content_search_max_bytes=250_000,
+                search_snippet_chars=160,
+                searchable_extensions=(".md",),
+                search_exclude_names=(".git",),
+            ),
+            logging=LoggingConfig(audit_log_path=Path("/tmp/work/data/audit.jsonl")),
+        )
+
+        self.assertEqual((("work", "data/audit.jsonl"),), _audit_log_exclude_paths(config))
 
     def test_format_size_uses_human_units(self) -> None:
         self.assertEqual("42 B", format_size(42))
