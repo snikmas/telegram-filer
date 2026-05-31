@@ -57,15 +57,15 @@ Acceptance:
 
 ## Milestone 4 - Browse UX
 
-- [ ] Render root list with inline buttons.
-- [ ] Render folder contents.
-- [ ] Show hidden files inside allowlisted folders.
-- [ ] Sort folders before files.
-- [ ] Add parent navigation.
-- [ ] Add pagination.
-- [ ] Add file detail view.
-- [ ] Handle empty folders.
-- [ ] Handle missing or permission-denied folders.
+- [x] Render root list with shell-style text selection.
+- [x] Render folder contents.
+- [x] Show hidden files inside allowlisted folders.
+- [x] Sort folders before files.
+- [x] Add parent navigation with `..`.
+- [x] Add pagination with `more` and `prev`.
+- [x] Add file detail view.
+- [x] Handle empty folders.
+- [x] Handle missing or permission-denied folders.
 
 Acceptance:
 
@@ -75,17 +75,17 @@ Acceptance:
 
 ## Milestone 5 - Preview And Download
 
-- [ ] Define previewable extensions.
-- [ ] Implement text preview size limit.
-- [ ] Format preview safely for Telegram.
-- [ ] Show metadata for unsupported or binary files.
-- [ ] Implement file download.
-- [ ] Add upload size check.
-- [ ] Show metadata for files larger than 45 MB.
-- [ ] Add create-compressed-archive action for oversized files.
-- [ ] Send compressed archive when it is below the upload limit.
-- [ ] Report compressed size clearly when archive is still too large.
-- [ ] Handle Telegram upload errors.
+- [x] Define previewable extensions.
+- [x] Implement text preview size limit.
+- [x] Format preview safely for Telegram.
+- [x] Show metadata for unsupported or binary files.
+- [x] Implement file download.
+- [x] Add upload size check.
+- [x] Show metadata for files larger than 45 MB.
+- [x] Add create-compressed-archive action for oversized files.
+- [x] Send compressed archive when it is below the upload limit.
+- [x] Report compressed size clearly when archive is still too large.
+- [x] Handle Telegram upload errors.
 
 Acceptance:
 
@@ -95,14 +95,14 @@ Acceptance:
 
 ## Milestone 6 - Delete Confirmation
 
-- [ ] Create pending action model.
-- [ ] Add delete button to file detail view.
-- [ ] Add confirmation screen.
-- [ ] Add expiration for pending delete actions.
-- [ ] Implement cancel.
-- [ ] Move deleted files to trash.
-- [ ] If trash is unavailable, fail clearly instead of permanently deleting.
-- [ ] Do not allow folder deletion in MVP.
+- [x] Create pending action model.
+- [x] Add delete button to file detail view.
+- [x] Add confirmation screen.
+- [x] Add expiration for pending delete actions.
+- [x] Implement cancel.
+- [x] Move deleted files to trash.
+- [x] If trash is unavailable, fail clearly instead of permanently deleting.
+- [x] Do not allow folder deletion in MVP.
 
 Acceptance:
 
@@ -112,13 +112,13 @@ Acceptance:
 
 ## Milestone 7 - Filename Search
 
-- [ ] Add `/search <query>`.
-- [ ] Search across allowed roots.
-- [ ] Match case-insensitively.
-- [ ] Tokenize multi-word query.
-- [ ] Limit result count.
-- [ ] Include path, size, and modified date in results.
-- [ ] Make each result selectable.
+- [x] Add `/search <query>`.
+- [x] Search across allowed roots.
+- [x] Match case-insensitively.
+- [x] Tokenize multi-word query.
+- [x] Limit result count.
+- [x] Include path, size, and modified date in results.
+- [x] Make each result selectable.
 
 Acceptance:
 
@@ -128,13 +128,13 @@ Acceptance:
 
 ## Milestone 8 - Audit Logs And Reliability
 
-- [ ] Add append-only JSONL audit log.
-- [ ] Log unauthorized access attempts.
-- [ ] Log browse, preview, download, delete, and search actions.
-- [ ] Log failures with error type.
-- [ ] Add graceful startup validation.
-- [ ] Add graceful shutdown handling.
-- [ ] Add basic local run script or command.
+- [x] Add append-only JSONL audit log.
+- [x] Log unauthorized access attempts.
+- [x] Log browse, preview, download, delete, and search actions.
+- [x] Log failures with error type.
+- [x] Add graceful startup validation.
+- [x] Add graceful shutdown handling.
+- [x] Add basic local run script or command.
 
 Acceptance:
 
@@ -144,10 +144,10 @@ Acceptance:
 
 ## Milestone 9 - Packaging For Personal Use
 
-- [ ] Add install/run instructions.
-- [ ] Add user-level systemd service template.
-- [ ] Add environment file template.
-- [ ] Add troubleshooting notes.
+- [x] Add install/run instructions.
+- [x] Add user-level systemd service template.
+- [x] Add environment file template.
+- [x] Add troubleshooting notes.
 - [ ] Test laptop restart behavior if systemd is added.
 
 Acceptance:
@@ -157,24 +157,24 @@ Acceptance:
 
 ## Testing Checklist
 
-- [ ] Unauthorized Telegram user cannot browse roots.
-- [ ] Owner can browse all configured roots.
-- [ ] Path traversal attempts are rejected.
-- [ ] Symlink escape attempts are rejected.
-- [ ] Missing file produces a clear message.
-- [ ] Permission denied produces a clear message.
-- [ ] Large folder pagination works.
-- [ ] Preview truncates large text files.
-- [ ] Binary preview is blocked.
-- [ ] File download works.
-- [ ] Oversized download shows metadata.
-- [ ] Oversized file archive creation works when compression brings it under the upload limit.
-- [ ] Oversized archive failure reports the compressed size clearly.
-- [ ] Delete requires confirmation.
-- [ ] Delete confirmation expires.
-- [ ] Folder delete is blocked.
-- [ ] Search returns useful results.
-- [ ] Audit log records important actions.
+- [x] Unauthorized Telegram user cannot browse roots.
+- [x] Owner can browse all configured roots.
+- [x] Path traversal attempts are rejected.
+- [x] Symlink escape attempts are rejected.
+- [x] Missing file produces a clear message.
+- [x] Permission denied produces a clear message.
+- [x] Large folder pagination works.
+- [x] Preview truncates large text files.
+- [x] Binary preview is blocked.
+- [x] File download works.
+- [x] Oversized download shows metadata.
+- [x] Oversized file archive creation works when compression brings it under the upload limit.
+- [x] Oversized archive failure reports the compressed size clearly.
+- [x] Delete requires confirmation.
+- [x] Delete confirmation expires.
+- [x] Folder delete is blocked.
+- [x] Search returns useful results.
+- [x] Audit log records important actions.
 
 ## Suggested 2-Week Schedule
 

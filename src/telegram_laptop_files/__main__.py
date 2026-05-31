@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 import sys
 
+from .audit import AuditLog
 from .bot import run_bot
 from .config import AppConfig, ConfigError, load_config, load_dotenv
 
@@ -45,8 +46,12 @@ def main() -> int:
         config = load_config(args.config)
         if (args.require_token or not args.check_config) and not config.telegram.bot_token:
             raise ConfigError(f"Missing bot token environment variable: {config.telegram.bot_token_env}")
+        AuditLog(config.logging.audit_log_path).validate()
     except ConfigError as exc:
         print(f"Config error: {exc}", file=sys.stderr)
+        return 2
+    except OSError as exc:
+        print(f"Startup error: audit log is not writable: {exc}", file=sys.stderr)
         return 2
 
     print(_format_summary(config))
