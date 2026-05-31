@@ -248,7 +248,7 @@ class BotCommandHelperTests(unittest.TestCase):
         self.assertIn("&lt;secret&gt;&amp;done", message)
         self.assertIn("file continues beyond preview limit", message)
 
-    def test_search_results_message_includes_path_size_and_modified_date(self) -> None:
+    def test_search_results_message_is_compact(self) -> None:
         metadata = FileMetadata(
             root_id="work",
             relative_path="invoices/Invoice March.pdf",
@@ -263,8 +263,8 @@ class BotCommandHelperTests(unittest.TestCase):
         self.assertIn("Invoice March.pdf", message)
         self.assertIn("<code>1)</code>", message)
         self.assertIn("work:/invoices/Invoice March.pdf", message)
-        self.assertIn("2.0 KB", message)
-        self.assertIn("2026-01-02", message)
+        self.assertNotIn("2.0 KB", message)
+        self.assertNotIn("2026-01-02", message)
 
     def test_search_results_message_handles_empty_results(self) -> None:
         message = format_search_results_message("missing", (), limit=20)
@@ -350,7 +350,7 @@ class BotCommandHelperTests(unittest.TestCase):
         self.assertIn("Recent files", message)
         self.assertIn("<code>1)</code>", message)
         self.assertIn("work:/notes/today.md", message)
-        self.assertIn("2026-01-02", message)
+        self.assertIn("01-02", message)
 
     def test_status_message_summarizes_runtime_health_without_secrets(self) -> None:
         config = AppConfig(

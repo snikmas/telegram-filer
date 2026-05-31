@@ -102,7 +102,7 @@ def _parse_config(raw: dict[str, Any], base_dir: Path) -> AppConfig:
     max_preview_bytes = _positive_int(filesystem_raw.get("max_preview_bytes", 12000), "filesystem.max_preview_bytes")
     max_upload_bytes = _positive_int(filesystem_raw.get("max_upload_bytes", 45000000), "filesystem.max_upload_bytes")
     search_result_limit = _positive_int(
-        filesystem_raw.get("search_result_limit", 10),
+        filesystem_raw.get("search_result_limit", 5),
         "filesystem.search_result_limit",
     )
     content_search_max_bytes = _positive_int(

@@ -20,7 +20,7 @@ filesystem:
       path: /home/snikmas/Documents/Obsidian Vault
   max_preview_bytes: 12000
   max_upload_bytes: 45000000
-  search_result_limit: 10
+  search_result_limit: 5
   content_search_max_bytes: 250000
   search_snippet_chars: 160
   searchable_extensions:

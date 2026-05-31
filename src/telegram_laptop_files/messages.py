@@ -166,19 +166,11 @@ def format_search_results_message(query: str, results: tuple[FileMetadata, ...],
         return "\n".join(lines)
 
     for index, metadata in enumerate(results, start=1):
-        lines.extend(
-            [
-                f"<code>{index})</code> <b>{html.escape(metadata.name)}</b>",
-                f"     <code>{html.escape(metadata.root_id)}:/{html.escape(metadata.relative_path)}</code>",
-                (
-                    f"     {format_size(metadata.size_bytes)} · "
-                    f"{metadata.modified_at.astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}"
-                ),
-            ]
-        )
+        lines.append(f"<code>{index})</code> <b>{html.escape(metadata.name)}</b>")
+        lines.append(f"   <code>{html.escape(_format_shell_path(metadata.root_id, metadata.relative_path))}</code>")
 
     if len(results) >= limit:
-        lines.extend(["", f"Showing first {limit} matches."])
+        lines.extend(["", f"First {limit} matches. Narrow the query for more specific results."])
     return "\n".join(lines)
 
 
@@ -195,20 +187,12 @@ def format_content_search_results_message(query: str, results: tuple[ContentSear
 
     for index, result in enumerate(results, start=1):
         metadata = result.metadata
-        lines.extend(
-            [
-                f"<code>{index})</code> <b>{html.escape(metadata.name)}</b>",
-                f"     <code>{html.escape(metadata.root_id)}:/{html.escape(metadata.relative_path)}</code>",
-                (
-                    f"     {format_size(metadata.size_bytes)} · "
-                    f"{metadata.modified_at.astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}"
-                ),
-                f"     <i>{html.escape(result.snippet)}</i>",
-            ]
-        )
+        lines.append(f"<code>{index})</code> <b>{html.escape(metadata.name)}</b>")
+        lines.append(f"   <code>{html.escape(_format_shell_path(metadata.root_id, metadata.relative_path))}</code>")
+        lines.append(f"   <i>{html.escape(result.snippet)}</i>")
 
     if len(results) >= limit:
-        lines.extend(["", f"Showing first {limit} matches."])
+        lines.extend(["", f"First {limit} matches. Narrow the query for more specific results."])
     return "\n".join(lines)
 
 
@@ -220,19 +204,12 @@ def format_recent_files_message(results: tuple[FileMetadata, ...], limit: int) -
         return "\n".join(lines)
 
     for index, metadata in enumerate(results, start=1):
-        lines.extend(
-            [
-                f"<code>{index})</code> <b>{html.escape(metadata.name)}</b>",
-                f"     <code>{html.escape(metadata.root_id)}:/{html.escape(metadata.relative_path)}</code>",
-                (
-                    f"     {format_size(metadata.size_bytes)} · "
-                    f"{metadata.modified_at.astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}"
-                ),
-            ]
-        )
+        modified = metadata.modified_at.astimezone().strftime("%m-%d %H:%M")
+        lines.append(f"<code>{index})</code> <b>{html.escape(metadata.name)}</b>  {modified}")
+        lines.append(f"   <code>{html.escape(_format_shell_path(metadata.root_id, metadata.relative_path))}</code>")
 
     if len(results) >= limit:
-        lines.extend(["", f"Showing first {limit} files."])
+        lines.extend(["", f"First {limit} recent files."])
     return "\n".join(lines)
 
 

@@ -1,45 +1,91 @@
 # tg-filer
 
-A private Telegram bot for browsing allowlisted laptop folders from a phone.
+Private Telegram file browser for your laptop.
 
-The MVP runs locally on the laptop and uses Telegram long polling, so no public
-web server is needed.
+`tg-filer` lets you open selected laptop folders from your phone, find files,
+preview text, download files, compress oversized files, and move files to trash
+without exposing your whole machine.
 
-## MVP Status
+It runs as a local process on the laptop and talks to Telegram with long
+polling. There is no public web server and no inbound port to open.
 
-Milestones 1 through 8 are in place, and milestone 9 packaging is in place except reboot validation:
+```text
+Phone -> Telegram Bot API -> tg-filer on your laptop -> allowlisted folders
+```
 
-- Project name: `tg-filer`.
-- Python package: `telegram_laptop_files`.
-- Telegram framework choice: `python-telegram-bot`.
-- Config format: YAML.
-- Local secrets: `.env`, ignored by git.
-- Telegram long polling startup.
-- Owner Telegram user ID allowlist.
-- `/start`, `/roots`, `/help`, and `/cancel`.
-- Canonical allowlisted filesystem roots.
-- Shared safe path resolver for future file actions.
-- Path traversal and symlink-escape protection.
-- File and folder metadata helper.
-- Compact typed root and folder browsing.
-- Hidden-file display inside allowlisted roots.
-- Folder-first sorting, parent navigation, pagination, and empty-folder handling.
-- File detail screens with metadata and compact action buttons.
-- Text preview for common text formats, including Markdown notes.
-- Direct file download under the configured upload limit.
-- Oversized-file metadata plus compressed archive creation and upload when the archive fits.
-- Expiring delete confirmation that moves files to the user's trash.
-- Folder deletion remains disabled for the MVP.
-- `/recent` recently modified files across configured roots.
-- `/search <query>` filename/path search across all configured roots.
-- `/content <query>` content search inside configured text-like files.
-- `/status` runtime health summary for token, proxy, audit log, roots, and limits.
-- Case-insensitive multi-token search results with path, size, modified date, snippets for content matches, and selectable buttons.
-- Append-only JSONL audit log for auth, browse, preview, download, archive, delete, search, recent, status, startup, and shutdown events.
-- Startup validation for config, token, root paths, and audit log writability.
-- Local run script plus user-level systemd service template.
+## What You Can Do
+
+- Browse configured folders from Telegram.
+- Use a compact shell-style chat UI that works comfortably on a phone.
+- Open file detail screens with size, path, and modified time.
+- Preview common text files, including Markdown, JSON, YAML, logs, and Python.
+- Download files directly when they fit Telegram's upload limit.
+- Create and download a compressed archive for oversized files.
+- Search by filename or path with `/search <query>`.
+- Search inside text-like files with `/content <query>`.
+- Show recently modified files with `/recent`.
+- Check bot health and limits with `/status`.
+- Move files to trash only after an explicit confirmation.
+- Keep an append-only JSONL audit log of bot actions.
+
+## Safety Model
+
+`tg-filer` is designed for personal, owner-only use.
+
+- Only Telegram user IDs listed in the config can use the bot.
+- Every file operation is limited to configured root folders.
+- Path traversal and symlink escapes are rejected.
+- Folder deletion is disabled.
+- File deletion moves files to trash and requires confirmation.
+- Bot tokens are read from environment variables, not YAML config.
+- Search skips noisy or sensitive names such as `.git`, `.venv`,
+  `node_modules`, `.env`, and `.env.*` by default.
+- Audit logs record actions and paths, not file contents.
+
+## Telegram Commands
+
+| Command | Purpose |
+| --- | --- |
+| `/start` | Show bot status and configured roots. |
+| `/roots` | Show configured root folders. |
+| `/recent` | Show recently modified files. |
+| `/search invoice pdf` | Find files by filename or relative path. |
+| `/content meeting notes` | Search inside configured text-like files. |
+| `/status` | Show token, proxy, audit log, root, and limit health. |
+| `/help` | Show controls inside Telegram. |
+| `/cancel` | Cancel pending actions and clear the current session. |
+
+Navigation is intentionally simple:
+
+- Send `1`, `2`, `3`, etc. to open a listed root or item.
+- Send `/folder-name` to enter a folder by exact name or unique 3+ character
+  prefix.
+- Send `/..` to go to the parent folder.
+- Send `/` to return to the selected root.
+- Use file detail buttons for preview, download, zip, delete, and back.
+
+## Showcase Flow
+
+A typical phone workflow looks like this:
+
+1. Send `/start` and choose a configured root.
+2. Browse folders with numbers or `/folder-prefix`.
+3. Open a file detail screen.
+4. Preview a text file or download the file to the phone.
+5. Use `/search tax receipt` when you remember the filename.
+6. Use `/content project deadline` when you remember text inside a note.
+7. Use `/recent` when you only remember that the file changed recently.
+
+The bot is most useful for personal notes, documents, project folders, logs, and
+other laptop files that you occasionally need while away from the keyboard.
 
 ## Quickstart
+
+Requirements:
+
+- Python 3.11 or newer.
+- A Telegram bot token from BotFather.
+- Your numeric Telegram user ID.
 
 Create a virtual environment and install the package:
 
@@ -56,96 +102,90 @@ cp config.example.yaml config.local.yaml
 cp .env.example .env
 ```
 
-Edit `.env` and set:
+Edit `.env` and set your bot token:
 
 ```bash
 TG_FILER_BOT_TOKEN=your-token-from-botfather
 ```
 
-If Telegram Bot API access on this laptop needs a local proxy, also set:
+If this laptop needs a local proxy to reach Telegram, also set:
 
 ```bash
 TG_FILER_PROXY=http://127.0.0.1:7897
 ```
 
-Edit `config.local.yaml` and replace the placeholder Telegram owner ID with
-your numeric Telegram user ID.
+Edit `config.local.yaml`:
 
-Check that config loads:
+- Replace the placeholder `telegram.owner_user_ids` value with your numeric
+  Telegram user ID.
+- Replace `filesystem.roots` with the folders you want to expose.
+- Keep root paths absolute.
+
+Check the config before starting the bot:
 
 ```bash
 tg-filer --config config.local.yaml --check-config --require-token
 ```
 
-For a token-free skeleton check, use the committed example config:
-
-```bash
-tg-filer --config config.example.yaml --check-config
-```
-
-Start the bot locally:
+Start locally:
 
 ```bash
 tg-filer --config config.local.yaml
 ```
 
-Or use the local run script:
+Or use the local helper script:
 
 ```bash
 scripts/run-local.sh
 ```
 
-Only Telegram users listed in `telegram.owner_user_ids` can use the bot. Other
-users receive an access-denied response and no folder details.
+Open Telegram and send `/start` to your bot.
 
-Use `/start` or `/roots` in Telegram, then send a listed number or `/root-name`
-to choose a root. Inside a folder, send a listed number to open that item or
-`/folder-name` to enter a folder by exact name or unique 3+ character prefix. File detail
-screens show compact buttons for preview, download, compression, delete confirmation, and back navigation.
-Use `/search invoice pdf` to search filenames and relative paths across configured roots.
-Use `/content meeting notes` to search inside text-like files. Tap a result
-number to open its file detail screen. Use `/recent` when you remember roughly
-when a file changed, not its name or folder. Use `/status` to check local health
-from Telegram. Full controls are available from `/help`.
-Search and content results skip configured machine or sensitive names such as
-`.git`, `.venv`, `venv`, `node_modules`, `.env`, and `.env.*` by default.
+## Config Guide
 
-## Config
+The example config allowlists three folders:
 
-The example config allowlists these folders:
+```yaml
+filesystem:
+  roots:
+    work:
+      display_name: Work
+      path: /home/snikmas/work
+    documents:
+      display_name: Documents
+      path: /home/snikmas/Documents
+    obsidian:
+      display_name: Obsidian
+      path: /home/snikmas/Documents/Obsidian Vault
+```
 
-- `/home/snikmas/work`
-- `/home/snikmas/Documents`
-- `/home/snikmas/Documents/Obsidian Vault`
-
-The bot token is never stored in YAML. The config names the environment variable
-that should contain the token:
+The bot token is referenced by environment variable name:
 
 ```yaml
 telegram:
   bot_token_env: TG_FILER_BOT_TOKEN
 ```
 
+Useful filesystem settings:
+
+| Setting | Purpose |
+| --- | --- |
+| `max_preview_bytes` | Maximum bytes read for text previews. |
+| `max_upload_bytes` | Maximum file size sent directly to Telegram. |
+| `search_result_limit` | Maximum search/recent results returned. |
+| `content_search_max_bytes` | Maximum file size read during content search. |
+| `search_snippet_chars` | Maximum snippet length for content matches. |
+| `searchable_extensions` | File extensions eligible for content search. |
+| `search_exclude_names` | Names or glob patterns skipped by search. |
+| `show_hidden_files` | Whether hidden files appear while browsing. |
+| `delete_mode` | Current MVP mode is `trash`. |
+
 Audit events are written as JSONL to `logging.audit_log_path`. The default is
 `./data/audit.jsonl`; the parent directory is created at startup.
 
-Search limits are configured under `filesystem`:
+## Run With Systemd
 
-- `search_result_limit`: maximum returned results.
-- `content_search_max_bytes`: maximum file size read during content search.
-- `search_snippet_chars`: maximum snippet length for content matches.
-- `searchable_extensions`: text-like extensions eligible for content search.
-- `search_exclude_names`: file or directory names, with optional glob patterns,
-  skipped by filename and content search.
-
-`show_hidden_files` still controls whether hidden files are visible while
-browsing. Search has the additional `search_exclude_names` filter so noisy
-machine folders and secret files do not dominate results. `.env` is excluded
-from content search by default because snippets can expose tokens or credentials.
-
-## Systemd
-
-Install the service for the current user:
+Install the user service template:
 
 ```bash
 mkdir -p ~/.config/tg-filer ~/.config/systemd/user
@@ -153,9 +193,9 @@ cp packaging/env.example ~/.config/tg-filer/env
 cp packaging/tg-filer.service ~/.config/systemd/user/
 ```
 
-Edit `~/.config/tg-filer/env` and set the real bot token. If the
-repo path or config path is different, edit `WorkingDirectory` and `ExecStart`
-inside `~/.config/systemd/user/tg-filer.service`.
+Edit `~/.config/tg-filer/env` and set the real bot token. If your checkout or
+config path is different, edit `WorkingDirectory` and `ExecStart` inside
+`~/.config/systemd/user/tg-filer.service`.
 
 Enable and start:
 
@@ -174,24 +214,39 @@ journalctl --user -u tg-filer.service -f
 
 ## Troubleshooting
 
-- Token: run `tg-filer --config config.local.yaml --check-config --require-token`; if it fails, check `.env` or the systemd environment file.
-- Network/proxy: if the audit log repeats `polling_network_error` with `TimedOut`, set `TG_FILER_PROXY` in `.env` or `~/.config/tg-filer/env` and restart the bot.
-- Auth: make sure `telegram.owner_user_ids` contains your numeric Telegram user ID.
-- Config: root paths must be absolute existing directories.
-- Filesystem: path traversal and symlink escapes are rejected; permission errors are reported without permanently deleting files.
-- Audit: if startup reports audit log writability problems, check `logging.audit_log_path` and parent directory permissions.
+| Problem | What to check |
+| --- | --- |
+| Bot will not start | Run `tg-filer --config config.local.yaml --check-config --require-token`. |
+| Token error | Check `.env` or `~/.config/tg-filer/env` and the `bot_token_env` config key. |
+| Telegram timeout | Set `TG_FILER_PROXY` if this laptop needs a proxy. |
+| Access denied | Make sure `telegram.owner_user_ids` contains your numeric Telegram user ID. |
+| Root config error | Root paths must be absolute existing directories. |
+| File cannot open | Permissions, traversal attempts, and symlink escapes are rejected. |
+| Audit log error | Check `logging.audit_log_path` and parent directory permissions. |
 
 ## Development
 
-Run the module directly during development:
+Run a token-free config check with the committed example config:
 
 ```bash
 PYTHONPATH=src python -m telegram_laptop_files --config config.example.yaml --check-config
 ```
 
-Run the tests:
+Run tests:
 
 ```bash
 .venv/bin/python -m pip install pytest
 .venv/bin/python -m pytest -q
 ```
+
+Project docs:
+
+- `PRODUCT.md` explains product scope and non-goals.
+- `ARCHITECTURE.md` explains the local polling architecture and safety rules.
+- `CHANGELOG.md` records notable changes.
+
+## Status
+
+The current version is a usable personal MVP for owner-only laptop file access
+through Telegram. It is intended for a single trusted owner, not shared hosting
+or multi-user permission management.
