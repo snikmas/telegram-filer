@@ -45,6 +45,7 @@ filesystem:
   search_exclude_names:
     - .git
     - .venv
+    - venv
     - __pycache__
     - .pytest_cache
     - node_modules

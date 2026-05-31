@@ -235,6 +235,8 @@ class FilesystemResolverTests(unittest.TestCase):
             root_path = Path(temp_dir).resolve()
             (root_path / ".git").mkdir()
             (root_path / ".git" / "invoice.pdf").write_text("git", encoding="utf-8")
+            (root_path / "venv").mkdir()
+            (root_path / "venv" / "invoice.pdf").write_text("venv", encoding="utf-8")
             (root_path / "node_modules").mkdir()
             (root_path / "node_modules" / "invoice.pdf").write_text("node", encoding="utf-8")
             (root_path / ".env").write_text("invoice", encoding="utf-8")
@@ -247,7 +249,7 @@ class FilesystemResolverTests(unittest.TestCase):
                 "invoice",
                 limit=10,
                 show_hidden_files=True,
-                exclude_names=(".git", "node_modules", ".env", ".env.*"),
+                exclude_names=(".git", "venv", "node_modules", ".env", ".env.*"),
             )
 
             self.assertEqual([".useful-invoice.pdf", "invoice.pdf"], [result.relative_path for result in results])
@@ -348,6 +350,8 @@ class FilesystemResolverTests(unittest.TestCase):
             root_path = Path(temp_dir).resolve()
             (root_path / ".venv").mkdir()
             (root_path / ".venv" / "secret.md").write_text("telegram config", encoding="utf-8")
+            (root_path / "venv").mkdir()
+            (root_path / "venv" / "secret.md").write_text("telegram config", encoding="utf-8")
             (root_path / ".env").write_text("telegram config", encoding="utf-8")
             (root_path / ".env.local").write_text("telegram config", encoding="utf-8")
             (root_path / ".notes.md").write_text("telegram config hidden note", encoding="utf-8")
@@ -361,7 +365,7 @@ class FilesystemResolverTests(unittest.TestCase):
                 max_file_bytes=1000,
                 snippet_chars=80,
                 show_hidden_files=True,
-                exclude_names=(".venv", ".env", ".env.*"),
+                exclude_names=(".venv", "venv", ".env", ".env.*"),
             )
 
             self.assertEqual([".notes.md", "notes.md"], [result.metadata.relative_path for result in results])
@@ -460,6 +464,7 @@ class RootConfigTests(unittest.TestCase):
 
             self.assertNotIn(".env", config.filesystem.searchable_extensions)
             self.assertIn(".git", config.filesystem.search_exclude_names)
+            self.assertIn("venv", config.filesystem.search_exclude_names)
             self.assertIn(".env", config.filesystem.search_exclude_names)
             self.assertIn(".env.*", config.filesystem.search_exclude_names)
 

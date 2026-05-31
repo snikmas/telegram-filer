@@ -145,6 +145,7 @@ def _parse_config(raw: dict[str, Any], base_dir: Path) -> AppConfig:
             [
                 ".git",
                 ".venv",
+                "venv",
                 "__pycache__",
                 ".pytest_cache",
                 "node_modules",

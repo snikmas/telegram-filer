@@ -108,7 +108,7 @@ number to open its file detail screen. Use `/recent` when you remember roughly
 when a file changed, not its name or folder. Use `/status` to check local health
 from Telegram. Full controls are available from `/help`.
 Search and content results skip configured machine or sensitive names such as
-`.git`, `.venv`, `node_modules`, `.env`, and `.env.*` by default.
+`.git`, `.venv`, `venv`, `node_modules`, `.env`, and `.env.*` by default.
 
 ## Config
 
