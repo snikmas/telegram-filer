@@ -89,7 +89,7 @@ def _parse_config(raw: dict[str, Any], base_dir: Path) -> AppConfig:
     filesystem_raw = _mapping(raw.get("filesystem"), "filesystem")
     logging_raw = _mapping(raw.get("logging", {}), "logging")
 
-    bot_token_env = _string(telegram_raw.get("bot_token_env", "TELEGRAM_FILE_BOT_TOKEN"), "telegram.bot_token_env")
+    bot_token_env = _string(telegram_raw.get("bot_token_env", "TG_FILER_BOT_TOKEN"), "telegram.bot_token_env")
     owner_user_ids = _owner_ids(telegram_raw.get("owner_user_ids", []))
     framework = _string(telegram_raw.get("framework", "python-telegram-bot"), "telegram.framework")
 
@@ -102,7 +102,7 @@ def _parse_config(raw: dict[str, Any], base_dir: Path) -> AppConfig:
         audit_log_path = (base_dir / audit_log_path).resolve()
 
     return AppConfig(
-        name=_string(app_raw.get("name", "Telegram Laptop Files"), "app.name"),
+        name=_string(app_raw.get("name", "tg-filer"), "app.name"),
         telegram=TelegramConfig(
             framework=framework,
             bot_token_env=bot_token_env,

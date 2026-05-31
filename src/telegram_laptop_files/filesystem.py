@@ -200,7 +200,7 @@ class FilesystemResolver:
             raise FilesystemError(f"Path is not a file: {metadata.relative_path}")
 
         resolved = self.resolve(root_id, relative_path)
-        cleanup_directory = tempfile.TemporaryDirectory(prefix="telegram-laptop-files-")
+        cleanup_directory = tempfile.TemporaryDirectory(prefix="tg-filer-")
         archive_path = Path(cleanup_directory.name) / f"{resolved.path.name}.zip"
         try:
             with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:

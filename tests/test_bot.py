@@ -16,6 +16,7 @@ from telegram_laptop_files.bot import (
     _root_match,
     _selector_index,
     _visible_directory_entries,
+    _telegram_proxy_from_environment,
     format_delete_confirmation_message,
     format_directory_message,
     format_file_detail_message,
@@ -74,6 +75,25 @@ class BotCommandHelperTests(unittest.TestCase):
         self.assertEqual(5, _polling_retry_delay(1))
         self.assertEqual(10, _polling_retry_delay(2))
         self.assertEqual(60, _polling_retry_delay(99))
+
+    def test_telegram_proxy_prefers_app_specific_environment(self) -> None:
+        with unittest.mock.patch.dict(
+            "os.environ",
+            {
+                "TG_FILER_PROXY": " socks5://127.0.0.1:7897 ",
+                "https_proxy": "http://127.0.0.1:7897",
+            },
+            clear=True,
+        ):
+            self.assertEqual("socks5://127.0.0.1:7897", _telegram_proxy_from_environment())
+
+    def test_telegram_proxy_falls_back_to_shell_proxy_environment(self) -> None:
+        with unittest.mock.patch.dict(
+            "os.environ",
+            {"https_proxy": "http://127.0.0.1:7897"},
+            clear=True,
+        ):
+            self.assertEqual("http://127.0.0.1:7897", _telegram_proxy_from_environment())
 
     def test_selector_index_accepts_menu_number_format(self) -> None:
         self.assertEqual(0, _selector_index("1"))

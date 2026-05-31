@@ -1,0 +1,15 @@
+[Unit]
+Description=tg-filer bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/snikmas/work/vibecoding-projects/tg-filer
+EnvironmentFile=%h/.config/tg-filer/env
+ExecStart=/home/snikmas/work/vibecoding-projects/tg-filer/.venv/bin/tg-filer --config /home/snikmas/work/vibecoding-projects/tg-filer/config.local.yaml --require-token
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

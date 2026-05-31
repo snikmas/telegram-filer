@@ -1,4 +1,4 @@
-# Telegram Laptop Files - MVP Tasks
+# tg-filer - MVP Tasks
 
 ## Working Plan
 

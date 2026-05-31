@@ -1,4 +1,4 @@
-"""Telegram Laptop Files package."""
+"""tg-filer package."""
 
 __all__ = ["__version__"]
 

@@ -1,9 +1,9 @@
 app:
-  name: Telegram Laptop Files
+  name: tg-filer
 
 telegram:
   framework: python-telegram-bot
-  bot_token_env: TELEGRAM_FILE_BOT_TOKEN
+  bot_token_env: TG_FILER_BOT_TOKEN
   owner_user_ids:
     - 123456789
 

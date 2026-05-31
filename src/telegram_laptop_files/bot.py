@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import html
 import logging
+import os
 from pathlib import Path
 from secrets import token_urlsafe
 import time
@@ -153,7 +154,12 @@ def build_application(config: AppConfig, audit_log: AuditLog | None = None) -> A
     if not config.telegram.bot_token:
         raise ValueError(f"Missing bot token environment variable: {config.telegram.bot_token_env}")
 
-    application = ApplicationBuilder().token(config.telegram.bot_token).build()
+    builder = ApplicationBuilder().token(config.telegram.bot_token)
+    proxy = _telegram_proxy_from_environment()
+    if proxy:
+        builder = builder.proxy(proxy).get_updates_proxy(proxy)
+
+    application = builder.build()
     application.bot_data["app_config"] = config
     application.bot_data["filesystem_resolver"] = FilesystemResolver(config.filesystem.roots)
     application.bot_data["callback_action_store"] = CallbackActionStore()
@@ -172,6 +178,22 @@ def build_application(config: AppConfig, audit_log: AuditLog | None = None) -> A
     return application
 
 
+def _telegram_proxy_from_environment() -> str | None:
+    for key in (
+        "TG_FILER_PROXY",
+        "HTTPS_PROXY",
+        "https_proxy",
+        "ALL_PROXY",
+        "all_proxy",
+        "HTTP_PROXY",
+        "http_proxy",
+    ):
+        value = os.environ.get(key)
+        if value and value.strip():
+            return value.strip()
+    return None
+
+
 def run_bot(config: AppConfig) -> None:
     audit_log = AuditLog(config.logging.audit_log_path)
     audit_log.validate()
@@ -184,6 +206,7 @@ def run_bot(config: AppConfig) -> None:
             application.run_polling(
                 allowed_updates=Update.ALL_TYPES,
                 bootstrap_retries=3,
+                close_loop=False,
             )
             break
         except NetworkError as exc:

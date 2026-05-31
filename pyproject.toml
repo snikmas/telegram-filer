@@ -3,7 +3,7 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "telegram-laptop-files"
+name = "tg-filer"
 version = "0.1.0"
 description = "Private Telegram bot for browsing allowlisted laptop folders."
 readme = "README.md"
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-telegram-laptop-files = "telegram_laptop_files.__main__:main"
+tg-filer = "telegram_laptop_files.__main__:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/telegram_laptop_files"]

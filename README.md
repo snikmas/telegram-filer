@@ -1,4 +1,4 @@
-# Telegram Laptop Files
+# tg-filer
 
 A private Telegram bot for browsing allowlisted laptop folders from a phone.
 
@@ -9,7 +9,7 @@ web server is needed.
 
 Milestones 1 through 8 are in place, and milestone 9 packaging is in place except reboot validation:
 
-- Project name: `telegram-laptop-files`.
+- Project name: `tg-filer`.
 - Python package: `telegram_laptop_files`.
 - Telegram framework choice: `python-telegram-bot`.
 - Config format: YAML.
@@ -56,7 +56,13 @@ cp .env.example .env
 Edit `.env` and set:
 
 ```bash
-TELEGRAM_FILE_BOT_TOKEN=your-token-from-botfather
+TG_FILER_BOT_TOKEN=your-token-from-botfather
+```
+
+If Telegram Bot API access on this laptop needs a local proxy, also set:
+
+```bash
+TG_FILER_PROXY=http://127.0.0.1:7897
 ```
 
 Edit `config.local.yaml` and replace the placeholder Telegram owner ID with
@@ -65,19 +71,19 @@ your numeric Telegram user ID.
 Check that config loads:
 
 ```bash
-telegram-laptop-files --config config.local.yaml --check-config --require-token
+tg-filer --config config.local.yaml --check-config --require-token
 ```
 
 For a token-free skeleton check, use the committed example config:
 
 ```bash
-telegram-laptop-files --config config.example.yaml --check-config
+tg-filer --config config.example.yaml --check-config
 ```
 
 Start the bot locally:
 
 ```bash
-telegram-laptop-files --config config.local.yaml
+tg-filer --config config.local.yaml
 ```
 
 Or use the local run script:
@@ -109,7 +115,7 @@ that should contain the token:
 
 ```yaml
 telegram:
-  bot_token_env: TELEGRAM_FILE_BOT_TOKEN
+  bot_token_env: TG_FILER_BOT_TOKEN
 ```
 
 Audit events are written as JSONL to `logging.audit_log_path`. The default is
@@ -120,33 +126,34 @@ Audit events are written as JSONL to `logging.audit_log_path`. The default is
 Install the service for the current user:
 
 ```bash
-mkdir -p ~/.config/telegram-laptop-files ~/.config/systemd/user
-cp packaging/env.example ~/.config/telegram-laptop-files/env
-cp packaging/telegram-laptop-files.service ~/.config/systemd/user/
+mkdir -p ~/.config/tg-filer ~/.config/systemd/user
+cp packaging/env.example ~/.config/tg-filer/env
+cp packaging/tg-filer.service ~/.config/systemd/user/
 ```
 
-Edit `~/.config/telegram-laptop-files/env` and set the real bot token. If the
+Edit `~/.config/tg-filer/env` and set the real bot token. If the
 repo path or config path is different, edit `WorkingDirectory` and `ExecStart`
-inside `~/.config/systemd/user/telegram-laptop-files.service`.
+inside `~/.config/systemd/user/tg-filer.service`.
 
 Enable and start:
 
 ```bash
 systemctl --user daemon-reload
-systemctl --user enable --now telegram-laptop-files.service
+systemctl --user enable --now tg-filer.service
 loginctl enable-linger "$USER"
 ```
 
 Check status and logs:
 
 ```bash
-systemctl --user status telegram-laptop-files.service
-journalctl --user -u telegram-laptop-files.service -f
+systemctl --user status tg-filer.service
+journalctl --user -u tg-filer.service -f
 ```
 
 ## Troubleshooting
 
-- Token: run `telegram-laptop-files --config config.local.yaml --check-config --require-token`; if it fails, check `.env` or the systemd environment file.
+- Token: run `tg-filer --config config.local.yaml --check-config --require-token`; if it fails, check `.env` or the systemd environment file.
+- Network/proxy: if the audit log repeats `polling_network_error` with `TimedOut`, set `TG_FILER_PROXY` in `.env` or `~/.config/tg-filer/env` and restart the bot.
 - Auth: make sure `telegram.owner_user_ids` contains your numeric Telegram user ID.
 - Config: root paths must be absolute existing directories.
 - Filesystem: path traversal and symlink escapes are rejected; permission errors are reported without permanently deleting files.

@@ -11,7 +11,7 @@ from .config import AppConfig, ConfigError, load_config, load_dotenv
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Telegram Laptop Files local bot")
+    parser = argparse.ArgumentParser(description="tg-filer local bot")
     parser.add_argument(
         "--config",
         default="config.example.yaml",
