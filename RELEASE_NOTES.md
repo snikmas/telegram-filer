@@ -1,9 +1,11 @@
-# tg-filer 0.2.0 — Portfolio Demo Release
+# tg-filer 0.2.1 — Portfolio Demo Release
 
 Status: portfolio release candidate; not yet tagged.
 
 ## Highlights
 
+- Published a sanitized 55-second walkthrough of the safe Telegram demo.
+- Added `/clear` to reset browsing state and cancel pending actions.
 - Safe fictional demo files with a repeatable reset command.
 - Explicit demo mode in CLI and Telegram status output.
 - Relative allowlisted-root paths resolved from the configuration directory.
@@ -15,17 +17,14 @@ Status: portfolio release candidate; not yet tagged.
 
 ## Verification
 
-- 78 tests passing.
+- 81 tests passing.
 - Clean isolated editable installation passing.
 - Package wheel builds successfully.
 - Example/demo/CI YAML files parse successfully.
 - Demo configuration validation passes.
 - `systemd-analyze --user verify` passes for the service template.
 - Live owner-bot verification passes with zero queued Telegram updates.
-- The bot delivered a verification message from the supervised v0.2.0 service.
+- The bot delivered a verification message from the supervised v0.2.1 service.
 
-## Remaining Portfolio Asset
-
-- Capture and approve the public Telegram demo video.
-
-Tag publication is intentionally separate from this source release.
+The source, live demo, and public walkthrough are ready. Tag publication remains
+intentionally separate from this source release.

@@ -20,6 +20,8 @@ Phone -> Telegram Bot API -> tg-filer -> allowlisted laptop folders
 The repository includes fictional invoices, reports, and meeting notes so the
 full interface can be demonstrated without exposing private files.
 
+[Watch the 55-second safe-demo walkthrough](docs/assets/tg-filer-demo.mp4).
+
 ```bash
 python scripts/reset-demo.py
 python -m pip install -e .
@@ -77,6 +79,7 @@ trash.
 | `/content meeting notes` | Search inside text files. |
 | `/status` | Show bot health and limits. |
 | `/help` | Show controls. |
+| `/clear` | Clear the browsing session and pending actions. |
 | `/cancel` | Cancel the current action. |
 
 Navigation:
