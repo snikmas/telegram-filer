@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install package and tests
+        run: python -m pip install -e . pytest
+      - name: Restore safe demo files
+        run: python scripts/reset-demo.py
+      - name: Validate demo configuration
+        run: tg-filer --config config.demo.yaml --check-config
+      - name: Run tests
+        run: python -m pytest -q
+      - name: Compile package
+        run: python -m compileall -q src tests scripts
