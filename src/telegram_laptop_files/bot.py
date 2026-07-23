@@ -288,6 +288,7 @@ def build_application(config: AppConfig, audit_log: AuditLog | None = None) -> A
     application.add_handler(CommandHandler("content", _guarded(config, content_command)))
     application.add_handler(CommandHandler("status", _guarded(config, status_command)))
     application.add_handler(CommandHandler("help", _guarded(config, help_command)))
+    application.add_handler(CommandHandler("clear", _guarded(config, clear_command)))
     application.add_handler(CommandHandler("cancel", _guarded(config, cancel_command)))
     application.add_handler(CallbackQueryHandler(_guarded(config, filesystem_callback)))
     application.add_handler(MessageHandler(filters.COMMAND, _guarded(config, command_alias_message)))
@@ -462,14 +463,23 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await _reply_text(update, format_help_message())
 
 
+async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    _clear_session_state(context)
+    await _reply_text(update, "Session cleared. Pending actions canceled. Type /roots to choose a root.")
+
+
 async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    _clear_session_state(context)
+    await _reply_text(update, "Pending action canceled. Session cleared. Type /roots to choose a root.")
+
+
+def _clear_session_state(context: ContextTypes.DEFAULT_TYPE) -> None:
     pending_store = _pending_delete_store_from_context(context)
     for pending_token in _pending_delete_tokens_from_context(context):
         pending_store.cancel(pending_token)
     context.user_data.pop("pending_delete_tokens", None)
     context.user_data.pop("pending_delete_token", None)
     context.user_data.pop("browser_session", None)
-    await _reply_text(update, "Pending action canceled. Session cleared. Type /roots to choose a root.")
 
 
 async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -521,6 +531,9 @@ async def _handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_t
         return
     if command == "/status":
         await status_command(update, context)
+        return
+    if command == "/clear":
+        await clear_command(update, context)
         return
     if session is None:
         if _is_number_selector(command) or _is_slash_selector(raw_text):
