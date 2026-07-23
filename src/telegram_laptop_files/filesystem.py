@@ -80,8 +80,14 @@ class ContentSearchResult:
 
 
 class FilesystemResolver:
-    def __init__(self, roots: tuple[RootConfig, ...]) -> None:
+    def __init__(
+        self,
+        roots: tuple[RootConfig, ...],
+        *,
+        trash_directory: Path | None = None,
+    ) -> None:
         self._roots_by_id = {root.id: root for root in roots}
+        self._trash_directory = trash_directory
 
     def resolve(self, root_id: str, relative_path: str | Path = "") -> ResolvedPath:
         root = self._root(root_id)
@@ -227,7 +233,7 @@ class FilesystemResolver:
             raise FilesystemError(f"Path is not a file: {metadata.relative_path}")
 
         resolved = self.resolve(root_id, relative_path)
-        trash_files, trash_info = _trash_directories()
+        trash_files, trash_info = _trash_directories(self._trash_directory)
         try:
             trash_files.mkdir(parents=True, exist_ok=True)
             trash_info.mkdir(parents=True, exist_ok=True)
@@ -546,7 +552,10 @@ def _content_snippet(text: str, tokens: tuple[str, ...], *, max_chars: int) -> s
     return snippet
 
 
-def _trash_directories() -> tuple[Path, Path]:
+def _trash_directories(custom_root: Path | None = None) -> tuple[Path, Path]:
+    if custom_root is not None:
+        trash_root = custom_root
+        return trash_root / "files", trash_root / "info"
     data_home = (
         Path(os.environ["XDG_DATA_HOME"]).expanduser()
         if os.environ.get("XDG_DATA_HOME")

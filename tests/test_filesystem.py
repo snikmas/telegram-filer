@@ -172,6 +172,29 @@ class FilesystemResolverTests(unittest.TestCase):
             self.assertEqual("hello", trash_file.read_text(encoding="utf-8"))
             self.assertIn("Path=", trash_info.read_text(encoding="utf-8"))
 
+    def test_moves_file_to_custom_demo_trash(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir).resolve()
+            root_path = base_path / "root"
+            trash_path = base_path / "demo-trash"
+            root_path.mkdir()
+            file_path = root_path / "report.txt"
+            file_path.write_text("fictional demo", encoding="utf-8")
+            resolver = FilesystemResolver(
+                (RootConfig(id="demo", display_name="Demo", path=root_path),),
+                trash_directory=trash_path,
+            )
+
+            metadata = resolver.move_file_to_trash("demo", "report.txt")
+
+            self.assertEqual("report.txt", metadata.relative_path)
+            self.assertFalse(file_path.exists())
+            self.assertEqual(
+                "fictional demo",
+                (trash_path / "files" / "report.txt").read_text(encoding="utf-8"),
+            )
+            self.assertTrue((trash_path / "info" / "report.txt.trashinfo").exists())
+
     def test_move_file_to_trash_rejects_directories(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as data_home:
             root_path = Path(temp_dir).resolve()
@@ -419,6 +442,51 @@ class RootConfigTests(unittest.TestCase):
 
             self.assertIsInstance(config, AppConfig)
             self.assertEqual(real_root.resolve(), config.filesystem.roots[0].path)
+
+    def test_config_resolves_relative_root_from_config_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            relative_root = base_path / "demo-data"
+            relative_root.mkdir()
+            raw = _raw_config(Path("demo-data"))
+
+            config = _parse_config(raw, base_dir=base_path)
+
+            self.assertEqual(relative_root.resolve(), config.filesystem.roots[0].path)
+
+    def test_config_loads_explicit_demo_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            raw = _raw_config(base_path)
+            raw["app"] = {"demo_mode": True}
+
+            config = _parse_config(raw, base_dir=base_path)
+
+            self.assertTrue(config.demo_mode)
+
+    def test_config_resolves_relative_trash_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            raw = _raw_config(base_path)
+            filesystem = raw["filesystem"]
+            assert isinstance(filesystem, dict)
+            filesystem["trash_directory"] = "./demo-trash"
+
+            config = _parse_config(raw, base_dir=base_path)
+
+            self.assertEqual(
+                (base_path / "demo-trash").resolve(),
+                config.filesystem.trash_directory,
+            )
+
+    def test_config_rejects_non_boolean_demo_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            raw = _raw_config(base_path)
+            raw["app"] = {"demo_mode": "yes"}
+
+            with self.assertRaises(ConfigError):
+                _parse_config(raw, base_dir=base_path)
 
     def test_config_rejects_missing_root(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

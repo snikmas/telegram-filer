@@ -1,0 +1,9 @@
+DEMO INVOICE — NOT A REAL TRANSACTION
+
+Invoice number: DEMO-2026-001
+Customer: Northwind Bicycle Studio
+Service: Website maintenance
+Amount: USD 240.00
+Status: Paid
+
+This file contains fictional portfolio data only.

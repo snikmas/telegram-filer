@@ -74,6 +74,7 @@ def main() -> int:
 def _format_summary(config: AppConfig) -> str:
     lines = [
         f"{config.name}",
+        f"Mode: {'SAFE DEMO' if config.demo_mode else 'PRIVATE'}",
         f"Framework: {config.telegram.framework}",
         f"Owner IDs configured: {len(config.telegram.owner_user_ids)}",
         f"Bot token env: {config.telegram.bot_token_env} ({'set' if config.telegram.bot_token else 'not set'})",

@@ -4,13 +4,17 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import html
+import json
 import logging
 import os
 from pathlib import Path
 from secrets import token_urlsafe
+import threading
 import time
 from typing import Literal
 from typing import TypeVar
+import urllib.error
+import urllib.request
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import NetworkError, TelegramError
@@ -65,6 +69,10 @@ DELETE_CONFIRMATION_TTL = timedelta(minutes=5)
 MIN_PREFIX_SELECTOR_LENGTH = 3
 POLLING_NETWORK_RETRY_INITIAL_SECONDS = 5
 POLLING_NETWORK_RETRY_MAX_SECONDS = 60
+POLLING_STALL_CHECK_INTERVAL_SECONDS = 30
+POLLING_STALL_PENDING_SECONDS = 120
+POLLING_STALL_EXIT_CODE = 75
+TELEGRAM_API_BASE_URL = "https://api.telegram.org"
 
 
 @dataclass(frozen=True)
@@ -152,18 +160,123 @@ class PendingDeleteStore:
             self._actions.pop(token, None)
 
 
+class PollingStallWatchdog:
+    """Restart a supervised bot when Telegram updates stop draining."""
+
+    def __init__(
+        self,
+        *,
+        bot_token: str,
+        proxy: str | None,
+        audit_log: AuditLog,
+        check_interval_seconds: int = POLLING_STALL_CHECK_INTERVAL_SECONDS,
+        pending_stall_seconds: int = POLLING_STALL_PENDING_SECONDS,
+        request_timeout_seconds: int = 10,
+        exit_callback: Callable[[int], None] | None = None,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._bot_token = bot_token
+        self._proxy = proxy
+        self._audit_log = audit_log
+        self._check_interval_seconds = check_interval_seconds
+        self._pending_stall_seconds = pending_stall_seconds
+        self._request_timeout_seconds = request_timeout_seconds
+        self._exit_callback = exit_callback or os._exit
+        self._monotonic = monotonic
+        self._pending_since: float | None = None
+        self._stop_event = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        if self._thread is not None:
+            return
+        self._thread = threading.Thread(
+            target=self._run,
+            name="tg-filer-polling-watchdog",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1)
+
+    def check_once(self) -> None:
+        try:
+            pending_update_count = _telegram_pending_update_count(
+                self._bot_token,
+                self._proxy,
+                timeout_seconds=self._request_timeout_seconds,
+            )
+        except (OSError, ValueError) as exc:
+            logger.warning("Telegram polling watchdog probe failed: %s", type(exc).__name__)
+            self._audit_log.record(
+                "polling_watchdog_probe",
+                status="error",
+                error_type=type(exc).__name__,
+            )
+            return
+
+        now = self._monotonic()
+        if pending_update_count <= 0:
+            self._pending_since = None
+            return
+
+        if self._pending_since is None:
+            self._pending_since = now
+            self._audit_log.record(
+                "polling_watchdog_pending",
+                status="observing",
+                pending_update_count=pending_update_count,
+            )
+            return
+
+        pending_seconds = int(now - self._pending_since)
+        if pending_seconds < self._pending_stall_seconds:
+            return
+
+        logger.error(
+            "Telegram polling appears stalled: %s pending updates for %s seconds; "
+            "exiting for service restart",
+            pending_update_count,
+            pending_seconds,
+        )
+        self._audit_log.record(
+            "polling_stall",
+            status="restarting",
+            pending_update_count=pending_update_count,
+            pending_seconds=pending_seconds,
+        )
+        self._exit_callback(POLLING_STALL_EXIT_CODE)
+
+    def _run(self) -> None:
+        while not self._stop_event.wait(self._check_interval_seconds):
+            self.check_once()
+
+
 def build_application(config: AppConfig, audit_log: AuditLog | None = None) -> Application:
     if not config.telegram.bot_token:
         raise ValueError(f"Missing bot token environment variable: {config.telegram.bot_token_env}")
 
-    builder = ApplicationBuilder().token(config.telegram.bot_token)
+    builder = (
+        ApplicationBuilder()
+        .token(config.telegram.bot_token)
+        .pool_timeout(10)
+        .get_updates_pool_timeout(10)
+        .get_updates_connect_timeout(10)
+        .get_updates_read_timeout(30)
+    )
     proxy = _telegram_proxy_from_environment()
     if proxy:
         builder = builder.proxy(proxy).get_updates_proxy(proxy)
 
     application = builder.build()
     application.bot_data["app_config"] = config
-    application.bot_data["filesystem_resolver"] = FilesystemResolver(config.filesystem.roots)
+    application.bot_data["filesystem_resolver"] = FilesystemResolver(
+        config.filesystem.roots,
+        trash_directory=config.filesystem.trash_directory,
+    )
     application.bot_data["callback_action_store"] = CallbackActionStore()
     application.bot_data["pending_delete_store"] = PendingDeleteStore()
     application.bot_data["audit_log"] = audit_log or AuditLog(config.logging.audit_log_path)
@@ -203,34 +316,85 @@ def run_bot(config: AppConfig) -> None:
     audit_log = AuditLog(config.logging.audit_log_path)
     audit_log.validate()
     audit_log.record("startup", status="ok", root_count=len(config.filesystem.roots))
+    if not config.telegram.bot_token:
+        raise ValueError(f"Missing bot token environment variable: {config.telegram.bot_token_env}")
+
+    watchdog = PollingStallWatchdog(
+        bot_token=config.telegram.bot_token,
+        proxy=_telegram_proxy_from_environment(),
+        audit_log=audit_log,
+    )
+    watchdog.start()
     attempt = 0
-    while True:
-        application = build_application(config, audit_log=audit_log)
-        logger.info("Starting Telegram polling for %s", config.name)
-        try:
-            application.run_polling(
-                allowed_updates=Update.ALL_TYPES,
-                bootstrap_retries=3,
-                close_loop=False,
+    try:
+        while True:
+            application = build_application(config, audit_log=audit_log)
+            logger.info("Starting Telegram polling for %s", config.name)
+            try:
+                application.run_polling(
+                    allowed_updates=Update.ALL_TYPES,
+                    bootstrap_retries=3,
+                    close_loop=False,
+                )
+                break
+            except NetworkError as exc:
+                attempt += 1
+                delay_seconds = _polling_retry_delay(attempt)
+                logger.warning(
+                    "Telegram polling network error; retrying in %s seconds",
+                    delay_seconds,
+                    exc_info=(type(exc), exc, exc.__traceback__),
+                )
+                audit_log.record(
+                    "polling_network_error",
+                    status="retrying",
+                    error_type=type(exc).__name__,
+                    retry_delay_seconds=delay_seconds,
+                    attempt=attempt,
+                )
+                time.sleep(delay_seconds)
+    finally:
+        watchdog.stop()
+        audit_log.record("shutdown", status="ok")
+
+
+def _telegram_pending_update_count(
+    bot_token: str,
+    proxy: str | None,
+    *,
+    timeout_seconds: int,
+) -> int:
+    url = f"{TELEGRAM_API_BASE_URL}/bot{bot_token}/getWebhookInfo"
+    request = urllib.request.Request(url, method="GET")
+    opener = _telegram_url_opener(proxy)
+    try:
+        with opener.open(request, timeout=timeout_seconds) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, urllib.error.URLError) as exc:
+        raise OSError("Telegram watchdog probe failed") from exc
+
+    if not isinstance(payload, dict) or payload.get("ok") is not True:
+        raise ValueError("Telegram watchdog probe returned an invalid response")
+    result = payload.get("result")
+    if not isinstance(result, dict):
+        raise ValueError("Telegram watchdog probe response is missing result")
+    pending_update_count = result.get("pending_update_count", 0)
+    if isinstance(pending_update_count, bool) or not isinstance(pending_update_count, int):
+        raise ValueError("Telegram watchdog probe returned an invalid pending update count")
+    return pending_update_count
+
+
+def _telegram_url_opener(proxy: str | None) -> urllib.request.OpenerDirector:
+    if proxy:
+        return urllib.request.build_opener(
+            urllib.request.ProxyHandler(
+                {
+                    "http": proxy,
+                    "https": proxy,
+                }
             )
-            break
-        except NetworkError as exc:
-            attempt += 1
-            delay_seconds = _polling_retry_delay(attempt)
-            logger.warning(
-                "Telegram polling network error; retrying in %s seconds",
-                delay_seconds,
-                exc_info=(type(exc), exc, exc.__traceback__),
-            )
-            audit_log.record(
-                "polling_network_error",
-                status="retrying",
-                error_type=type(exc).__name__,
-                retry_delay_seconds=delay_seconds,
-                attempt=attempt,
-            )
-            time.sleep(delay_seconds)
-    audit_log.record("shutdown", status="ok")
+        )
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 def _polling_retry_delay(attempt: int) -> int:
@@ -243,9 +407,14 @@ def _polling_retry_delay(attempt: int) -> int:
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     config = _config_from_context(context)
     _clear_browser_session(context)
+    mode_message = (
+        "Safe demo mode is active: only fictional files in the demo folder are available."
+        if config.demo_mode
+        else "Private owner-only access is active."
+    )
     message = (
         f"<b>{html.escape(config.name)}</b>\n\n"
-        "Private laptop file bot is ready.\n\n"
+        f"{mode_message}\n\n"
         f"{format_roots_message(config.filesystem.roots)}\n\n"
         "Use /help for controls."
     )

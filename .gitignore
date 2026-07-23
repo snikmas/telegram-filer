@@ -8,6 +8,8 @@ config.yaml
 # Runtime data
 data/
 logs/
+demo-data/
+demo-trash/
 *.log
 *.jsonl
 
@@ -20,6 +22,7 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+dist/
 
 # Virtual environments
 .venv/
@@ -36,3 +39,4 @@ env/
 CHANGELOG.md
 PRODUCT.md
 ARCHITECTURE.md
+PORTFOLIO_TODO.md
