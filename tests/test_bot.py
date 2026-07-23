@@ -7,6 +7,8 @@ from telegram_laptop_files.bot import (
     CALLBACK_PREFIX,
     CallbackAction,
     CallbackActionStore,
+    POLLING_STALL_EXIT_CODE,
+    PollingStallWatchdog,
     _content_search_results_keyboard,
     PendingDeleteStore,
     _audit_log_exclude_paths,
@@ -21,6 +23,7 @@ from telegram_laptop_files.bot import (
     _selector_index,
     _visible_directory_entries,
     _telegram_proxy_from_environment,
+    _telegram_pending_update_count,
     format_delete_confirmation_message,
     format_content_search_results_message,
     format_directory_message,
@@ -385,6 +388,7 @@ class BotCommandHelperTests(unittest.TestCase):
         )
 
         self.assertIn("tg-filer status", message)
+        self.assertIn("Mode: private configured roots", message)
         self.assertIn("Token: set", message)
         self.assertIn("Proxy: not configured", message)
         self.assertIn("Audit log: writable", message)
@@ -519,9 +523,148 @@ class BotCommandHelperTests(unittest.TestCase):
             tuple(entry.name for entry in _named_entry_matches(entries, "Scr", dirs_only=True, files_only=False)),
         )
 
+
+class PollingStallWatchdogTests(unittest.TestCase):
+    def test_watchdog_records_probe_errors_without_restarting(self) -> None:
+        audit_log = _FakeAuditLog()
+        exits: list[int] = []
+        watchdog = PollingStallWatchdog(
+            bot_token="secret-token",
+            proxy=None,
+            audit_log=audit_log,
+            exit_callback=exits.append,
+        )
+
+        with unittest.mock.patch(
+            "telegram_laptop_files.bot._telegram_pending_update_count",
+            side_effect=OSError("network unavailable"),
+        ):
+            watchdog.check_once()
+
+        self.assertEqual([], exits)
+        self.assertEqual(
+            {
+                "action": "polling_watchdog_probe",
+                "status": "error",
+                "error_type": "OSError",
+            },
+            audit_log.events[0],
+        )
+
+    def test_watchdog_observes_pending_updates_before_restart(self) -> None:
+        audit_log = _FakeAuditLog()
+        clock = [100.0]
+        exits: list[int] = []
+        watchdog = PollingStallWatchdog(
+            bot_token="secret-token",
+            proxy="http://127.0.0.1:7897",
+            audit_log=audit_log,
+            pending_stall_seconds=30,
+            exit_callback=exits.append,
+            monotonic=lambda: clock[0],
+        )
+
+        with unittest.mock.patch(
+            "telegram_laptop_files.bot._telegram_pending_update_count",
+            side_effect=(2, 2),
+        ):
+            watchdog.check_once()
+            clock[0] = 129.0
+            watchdog.check_once()
+
+        self.assertEqual([], exits)
+        self.assertEqual("polling_watchdog_pending", audit_log.events[0]["action"])
+
+    def test_watchdog_exits_when_pending_updates_do_not_drain(self) -> None:
+        audit_log = _FakeAuditLog()
+        clock = [100.0]
+        exits: list[int] = []
+        watchdog = PollingStallWatchdog(
+            bot_token="secret-token",
+            proxy="http://127.0.0.1:7897",
+            audit_log=audit_log,
+            pending_stall_seconds=30,
+            exit_callback=exits.append,
+            monotonic=lambda: clock[0],
+        )
+
+        with unittest.mock.patch(
+            "telegram_laptop_files.bot._telegram_pending_update_count",
+            side_effect=(1, 1),
+        ):
+            watchdog.check_once()
+            clock[0] = 131.0
+            watchdog.check_once()
+
+        self.assertEqual([POLLING_STALL_EXIT_CODE], exits)
+        self.assertEqual("polling_stall", audit_log.events[-1]["action"])
+        self.assertEqual("restarting", audit_log.events[-1]["status"])
+        self.assertEqual(31, audit_log.events[-1]["pending_seconds"])
+
+    def test_watchdog_resets_after_pending_updates_drain(self) -> None:
+        audit_log = _FakeAuditLog()
+        clock = [100.0]
+        exits: list[int] = []
+        watchdog = PollingStallWatchdog(
+            bot_token="secret-token",
+            proxy="http://127.0.0.1:7897",
+            audit_log=audit_log,
+            pending_stall_seconds=30,
+            exit_callback=exits.append,
+            monotonic=lambda: clock[0],
+        )
+
+        with unittest.mock.patch(
+            "telegram_laptop_files.bot._telegram_pending_update_count",
+            side_effect=(1, 0, 1),
+        ):
+            watchdog.check_once()
+            clock[0] = 200.0
+            watchdog.check_once()
+            watchdog.check_once()
+
+        self.assertEqual([], exits)
+        self.assertEqual(
+            ["polling_watchdog_pending", "polling_watchdog_pending"],
+            [event["action"] for event in audit_log.events],
+        )
+
+    def test_pending_update_probe_parses_telegram_response(self) -> None:
+        class _FakeResponse:
+            def __enter__(self) -> "_FakeResponse":
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            def read(self) -> bytes:
+                return b'{"ok": true, "result": {"pending_update_count": 3}}'
+
+        class _FakeOpener:
+            def open(self, request: object, timeout: int) -> _FakeResponse:
+                return _FakeResponse()
+
+        with unittest.mock.patch(
+            "telegram_laptop_files.bot._telegram_url_opener",
+            return_value=_FakeOpener(),
+        ):
+            self.assertEqual(
+                3,
+                _telegram_pending_update_count("secret-token", None, timeout_seconds=5),
+            )
+
+
 class _FakeContext:
     def __init__(self, user_data: dict[str, object]) -> None:
         self.user_data = user_data
+
+
+class _FakeAuditLog:
+    def __init__(self) -> None:
+        self.events: list[dict[str, object]] = []
+
+    def record(self, action: str, **fields: object) -> None:
+        self.events.append({"action": action, **fields})
 
 
 if __name__ == "__main__":

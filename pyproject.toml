@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tg-filer"
-version = "0.1.0"
-description = "Private Telegram bot for browsing allowlisted laptop folders."
+version = "0.2.0"
+description = "Secure owner-only Telegram bot for browsing allowlisted files."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

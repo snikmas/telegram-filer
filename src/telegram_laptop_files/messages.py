@@ -222,6 +222,7 @@ def format_status_message(
 ) -> str:
     lines = [
         f"<b>{html.escape(config.name)} status</b>",
+        f"Mode: {'safe demo files' if config.demo_mode else 'private configured roots'}",
         f"Token: {'set' if config.telegram.bot_token else 'missing'}",
         f"Proxy: {'configured' if proxy_configured else 'not configured'}",
         f"Audit log: {'writable' if audit_writable else 'not writable'}",

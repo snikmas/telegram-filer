@@ -1,5 +1,6 @@
 app:
   name: tg-filer
+  demo_mode: true
 
 telegram:
   framework: python-telegram-bot
@@ -9,15 +10,11 @@ telegram:
 
 filesystem:
   roots:
-    work:
-      display_name: Work
-      path: /home/snikmas/work
     documents:
-      display_name: Documents
-      path: /home/snikmas/Documents
-    obsidian:
-      display_name: Obsidian
-      path: /home/snikmas/Documents/Obsidian Vault
+      display_name: My Documents
+      # Relative paths are resolved from this config file's directory.
+      # Replace this example with an existing folder you explicitly allow.
+      path: ./demo-data
   max_preview_bytes: 12000
   max_upload_bytes: 45000000
   search_result_limit: 5
@@ -56,6 +53,9 @@ filesystem:
   show_hidden_files: true
   oversized_file_action: metadata_and_compress
   delete_mode: trash
+  # Demo deletions stay inside this ignored, disposable directory.
+  # Remove this setting to use the operating system's normal trash.
+  trash_directory: ./demo-trash
 
 logging:
   audit_log_path: ./data/audit.jsonl

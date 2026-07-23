@@ -40,6 +40,7 @@ class FilesystemConfig:
     search_snippet_chars: int
     searchable_extensions: tuple[str, ...]
     search_exclude_names: tuple[str, ...]
+    trash_directory: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,7 @@ class AppConfig:
     telegram: TelegramConfig
     filesystem: FilesystemConfig
     logging: LoggingConfig
+    demo_mode: bool = False
 
 
 def load_dotenv(path: Path) -> None:
@@ -98,7 +100,7 @@ def _parse_config(raw: dict[str, Any], base_dir: Path) -> AppConfig:
     owner_user_ids = _owner_ids(telegram_raw.get("owner_user_ids", []))
     framework = _string(telegram_raw.get("framework", "python-telegram-bot"), "telegram.framework")
 
-    roots = _roots(filesystem_raw.get("roots"))
+    roots = _roots(filesystem_raw.get("roots"), base_dir=base_dir)
     max_preview_bytes = _positive_int(filesystem_raw.get("max_preview_bytes", 12000), "filesystem.max_preview_bytes")
     max_upload_bytes = _positive_int(filesystem_raw.get("max_upload_bytes", 45000000), "filesystem.max_upload_bytes")
     search_result_limit = _positive_int(
@@ -157,6 +159,11 @@ def _parse_config(raw: dict[str, Any], base_dir: Path) -> AppConfig:
         ),
         "filesystem.search_exclude_names",
     )
+    trash_directory = _optional_path(
+        filesystem_raw.get("trash_directory"),
+        "filesystem.trash_directory",
+        base_dir=base_dir,
+    )
 
     audit_log_path = _path(logging_raw.get("audit_log_path", "./data/audit.jsonl"), "logging.audit_log_path")
     if not audit_log_path.is_absolute():
@@ -164,6 +171,7 @@ def _parse_config(raw: dict[str, Any], base_dir: Path) -> AppConfig:
 
     return AppConfig(
         name=_string(app_raw.get("name", "tg-filer"), "app.name"),
+        demo_mode=_boolean(app_raw.get("demo_mode", False), "app.demo_mode"),
         telegram=TelegramConfig(
             framework=framework,
             bot_token_env=bot_token_env,
@@ -185,6 +193,7 @@ def _parse_config(raw: dict[str, Any], base_dir: Path) -> AppConfig:
             search_snippet_chars=search_snippet_chars,
             searchable_extensions=searchable_extensions,
             search_exclude_names=search_exclude_names,
+            trash_directory=trash_directory,
         ),
         logging=LoggingConfig(audit_log_path=audit_log_path),
     )
@@ -208,8 +217,23 @@ def _positive_int(value: Any, name: str) -> int:
     return value
 
 
+def _boolean(value: Any, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ConfigError(f"{name} must be true or false")
+    return value
+
+
 def _path(value: Any, name: str) -> Path:
     return Path(_string(value, name)).expanduser()
+
+
+def _optional_path(value: Any, name: str, *, base_dir: Path) -> Path | None:
+    if value in (None, ""):
+        return None
+    path = _path(value, name)
+    if not path.is_absolute():
+        path = base_dir / path
+    return path.resolve(strict=False)
 
 
 def _owner_ids(value: Any) -> tuple[int, ...]:
@@ -259,7 +283,7 @@ def _string_list(value: Any, name: str) -> tuple[str, ...]:
     return tuple(items)
 
 
-def _roots(value: Any) -> tuple[RootConfig, ...]:
+def _roots(value: Any, *, base_dir: Path) -> tuple[RootConfig, ...]:
     roots_raw = _mapping(value, "filesystem.roots")
     if not roots_raw:
         raise ConfigError("filesystem.roots must define at least one root")
@@ -281,7 +305,7 @@ def _roots(value: Any) -> tuple[RootConfig, ...]:
             path = _path(root_raw.get("path"), f"filesystem.roots.{root_id}.path")
 
         if not path.is_absolute():
-            raise ConfigError(f"filesystem.roots.{root_id}.path must be absolute")
+            path = base_dir / path
         path = _canonical_root_path(path, f"filesystem.roots.{root_id}.path")
         roots.append(RootConfig(id=root_id, display_name=display_name, path=path))
 
