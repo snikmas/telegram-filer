@@ -48,6 +48,7 @@ def format_help_message() -> str:
             "<code>/content &lt;query&gt;</code> - Find text inside configured files.",
             "<code>/status</code> - Show bot health and current limits.",
             "<code>/help</code> - Show available commands.",
+            "<code>/clear</code> - Clear the browsing session and pending actions.",
             "<code>/cancel</code> - Cancel the current pending action.",
             "",
             "<b>Navigation</b>",

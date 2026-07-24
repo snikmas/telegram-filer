@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import unittest
@@ -13,17 +14,20 @@ from telegram_laptop_files.bot import (
     PendingDeleteStore,
     _audit_log_exclude_paths,
     _clear_browser_session,
+    _clear_session_state,
     _delete_confirmation_keyboard,
     _file_detail_keyboard,
     _search_results_keyboard,
     _named_entry_matches,
     _format_session_path,
+    _handle_text,
     _polling_retry_delay,
     _root_match,
     _selector_index,
     _visible_directory_entries,
     _telegram_proxy_from_environment,
     _telegram_pending_update_count,
+    clear_command,
     format_delete_confirmation_message,
     format_content_search_results_message,
     format_directory_message,
@@ -72,6 +76,7 @@ class BotCommandHelperTests(unittest.TestCase):
             "/content &lt;query&gt;",
             "/status",
             "/help",
+            "/clear",
             "/cancel",
         ):
             self.assertIn(command, message)
@@ -134,6 +139,60 @@ class BotCommandHelperTests(unittest.TestCase):
 
         self.assertNotIn("browser_session", context.user_data)
         self.assertEqual(["token"], context.user_data["pending_delete_tokens"])
+
+    def test_clear_session_state_cancels_pending_actions(self) -> None:
+        pending_store = PendingDeleteStore()
+        token, _ = pending_store.put("work", "notes/today.md")
+        context = _FakeContext(
+            user_data={
+                "browser_session": object(),
+                "pending_delete_tokens": [token],
+                "pending_delete_token": token,
+            },
+            bot_data={"pending_delete_store": pending_store},
+        )
+
+        _clear_session_state(context)
+
+        self.assertEqual({}, context.user_data)
+        self.assertIsNone(pending_store.get(token))
+
+    def test_clear_command_confirms_the_reset(self) -> None:
+        pending_store = PendingDeleteStore()
+        token, _ = pending_store.put("work", "notes/today.md")
+        context = _FakeContext(
+            user_data={
+                "browser_session": object(),
+                "pending_delete_tokens": [token],
+            },
+            bot_data={"pending_delete_store": pending_store},
+        )
+        update = object()
+
+        with unittest.mock.patch(
+            "telegram_laptop_files.bot._reply_text",
+            new_callable=unittest.mock.AsyncMock,
+        ) as reply:
+            asyncio.run(clear_command(update, context))
+
+        reply.assert_awaited_once_with(
+            update,
+            "Session cleared. Pending actions canceled. Type /roots to choose a root.",
+        )
+        self.assertEqual({}, context.user_data)
+        self.assertIsNone(pending_store.get(token))
+
+    def test_command_alias_routes_clear_case_insensitively(self) -> None:
+        context = _FakeContext(user_data={})
+        update = object()
+
+        with unittest.mock.patch(
+            "telegram_laptop_files.bot.clear_command",
+            new_callable=unittest.mock.AsyncMock,
+        ) as clear:
+            asyncio.run(_handle_text(update, context, "/CLEAR"))
+
+        clear.assert_awaited_once_with(update, context)
 
     def test_callback_action_store_uses_short_lookup_tokens(self) -> None:
         store = CallbackActionStore()
@@ -655,8 +714,19 @@ class PollingStallWatchdogTests(unittest.TestCase):
 
 
 class _FakeContext:
-    def __init__(self, user_data: dict[str, object]) -> None:
+    def __init__(
+        self,
+        user_data: dict[str, object],
+        *,
+        bot_data: dict[str, object] | None = None,
+    ) -> None:
         self.user_data = user_data
+        self.application = _FakeApplication(bot_data or {})
+
+
+class _FakeApplication:
+    def __init__(self, bot_data: dict[str, object]) -> None:
+        self.bot_data = bot_data
 
 
 class _FakeAuditLog:
