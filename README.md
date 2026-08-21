@@ -7,15 +7,14 @@ from Telegram. It is built for personal, owner-only access: find a file, preview
 it, download it, archive it if it is too large, or move it to trash after
 confirmation.
 
-It is a portfolio-ready example of a private Telegram workflow: the bot runs on
-the owner's computer, opens no inbound web port, and rejects every Telegram user
-who is not on the configured owner allowlist.
+The bot runs on the owner's computer, opens no inbound web port, and rejects
+every Telegram user who is not on the configured owner allowlist.
 
 ```text
 Phone -> Telegram Bot API -> tg-filer -> allowlisted laptop folders
 ```
 
-## Safe Demo
+## Try the safe demo
 
 The repository includes fictional invoices, reports, and meeting notes so the
 full interface can be demonstrated without exposing private files.
@@ -68,7 +67,7 @@ trash.
 - A polling watchdog can exit a stalled process so a supervisor such as
   `systemd` restarts it.
 
-## Commands
+## Use the bot
 
 | Command | What it does |
 | --- | --- |
@@ -84,14 +83,14 @@ trash.
 
 Navigation:
 
-- Send `1`, `2`, `3`, etc. to open a listed item.
+- Send an item number to open a listed file or folder.
 - Send `/folder-name` to enter a folder by exact name or unique 3+ character
   prefix.
 - Send `/..` to go up.
 - Send `/` to return to the selected root.
 - Use file buttons for preview, download, zip, delete, and back.
 
-## Quickstart
+## Set up private access
 
 Requirements:
 
@@ -131,7 +130,7 @@ Put the real token in `~/.config/tg-filer/env`, then validate without starting:
   --require-token
 ```
 
-## Config
+## Configure the allowed folders
 
 Start from `config.example.yaml` and change:
 
@@ -146,7 +145,7 @@ Start from `config.example.yaml` and change:
 Root paths must point to existing directories. Absolute paths are supported;
 relative paths are resolved from the directory containing the YAML config.
 
-## Service Mode
+## Run it as a user service
 
 A user-level systemd template is included:
 
@@ -186,7 +185,7 @@ updates while the process remains alive, the watchdog records a
 `polling_stall` audit event and exits with code `75`; the service template then
 restarts it.
 
-## What Can Be Customized
+## Adapt the workflow
 
 For a client project, the same core can be adapted for:
 
@@ -201,7 +200,7 @@ This repository is not public multi-user cloud storage. It does not protect a
 machine whose operating-system account or Telegram owner account is already
 compromised.
 
-## Troubleshooting
+## Troubleshoot common problems
 
 - **Missing token:** put `TG_FILER_BOT_TOKEN=...` in the selected env file and
   run the config check with `--require-token`.
@@ -220,7 +219,7 @@ compromised.
   pending/stall events and let systemd restart the process.
 - **Demo files were moved to trash:** run `python scripts/reset-demo.py`.
 
-## Development
+## Run the tests
 
 ```bash
 python scripts/reset-demo.py
@@ -229,7 +228,7 @@ tg-filer --config config.demo.yaml --check-config
 python -m pytest -q
 ```
 
-## Status
+## Current boundaries
 
 `tg-filer` is a usable personal MVP for private laptop file access through
 Telegram. It is not a hosted service and does not include multi-user permission
